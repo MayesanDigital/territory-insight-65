@@ -65,7 +65,7 @@ export const contactsService = {
       org_id: orgId,
       contact_id: contactId,
       action,
-      details: details ?? null,
+      details: (details ?? null) as never,
     });
   },
 };
