@@ -18,6 +18,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedMapaRouteImport } from './routes/_authenticated/mapa'
 import { Route as AuthenticatedMencionesRouteImport } from './routes/_authenticated/menciones'
 import { Route as AuthenticatedMonitorRouteImport } from './routes/_authenticated/monitor'
+import { Route as AuthenticatedReportesRouteImport } from './routes/_authenticated/reportes'
 import { Route as AuthenticatedSeccionesRouteImport } from './routes/_authenticated/secciones'
 
 const IndexRoute = IndexRouteImport.update({
@@ -64,6 +65,11 @@ const AuthenticatedMonitorRoute = AuthenticatedMonitorRouteImport.update({
   path: '/monitor',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedReportesRoute = AuthenticatedReportesRouteImport.update({
+  id: '/reportes',
+  path: '/reportes',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedSeccionesRoute = AuthenticatedSeccionesRouteImport.update({
   id: '/secciones',
   path: '/secciones',
@@ -79,6 +85,7 @@ export interface FileRoutesByFullPath {
   '/mapa': typeof AuthenticatedMapaRoute
   '/menciones': typeof AuthenticatedMencionesRoute
   '/monitor': typeof AuthenticatedMonitorRoute
+  '/reportes': typeof AuthenticatedReportesRoute
   '/secciones': typeof AuthenticatedSeccionesRoute
 }
 export interface FileRoutesByTo {
@@ -90,6 +97,7 @@ export interface FileRoutesByTo {
   '/mapa': typeof AuthenticatedMapaRoute
   '/menciones': typeof AuthenticatedMencionesRoute
   '/monitor': typeof AuthenticatedMonitorRoute
+  '/reportes': typeof AuthenticatedReportesRoute
   '/secciones': typeof AuthenticatedSeccionesRoute
 }
 export interface FileRoutesById {
@@ -103,6 +111,7 @@ export interface FileRoutesById {
   '/_authenticated/mapa': typeof AuthenticatedMapaRoute
   '/_authenticated/menciones': typeof AuthenticatedMencionesRoute
   '/_authenticated/monitor': typeof AuthenticatedMonitorRoute
+  '/_authenticated/reportes': typeof AuthenticatedReportesRoute
   '/_authenticated/secciones': typeof AuthenticatedSeccionesRoute
 }
 export interface FileRouteTypes {
@@ -116,6 +125,7 @@ export interface FileRouteTypes {
     | '/mapa'
     | '/menciones'
     | '/monitor'
+    | '/reportes'
     | '/secciones'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -127,6 +137,7 @@ export interface FileRouteTypes {
     | '/mapa'
     | '/menciones'
     | '/monitor'
+    | '/reportes'
     | '/secciones'
   id:
     | '__root__'
@@ -139,6 +150,7 @@ export interface FileRouteTypes {
     | '/_authenticated/mapa'
     | '/_authenticated/menciones'
     | '/_authenticated/monitor'
+    | '/_authenticated/reportes'
     | '/_authenticated/secciones'
   fileRoutesById: FileRoutesById
 }
@@ -213,6 +225,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMonitorRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/reportes': {
+      id: '/_authenticated/reportes'
+      path: '/reportes'
+      fullPath: '/reportes'
+      preLoaderRoute: typeof AuthenticatedReportesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/secciones': {
       id: '/_authenticated/secciones'
       path: '/secciones'
@@ -230,6 +249,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedMapaRoute: typeof AuthenticatedMapaRoute
   AuthenticatedMencionesRoute: typeof AuthenticatedMencionesRoute
   AuthenticatedMonitorRoute: typeof AuthenticatedMonitorRoute
+  AuthenticatedReportesRoute: typeof AuthenticatedReportesRoute
   AuthenticatedSeccionesRoute: typeof AuthenticatedSeccionesRoute
 }
 
@@ -240,6 +260,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedMapaRoute: AuthenticatedMapaRoute,
   AuthenticatedMencionesRoute: AuthenticatedMencionesRoute,
   AuthenticatedMonitorRoute: AuthenticatedMonitorRoute,
+  AuthenticatedReportesRoute: AuthenticatedReportesRoute,
   AuthenticatedSeccionesRoute: AuthenticatedSeccionesRoute,
 }
 
