@@ -16,6 +16,7 @@ import { Route as AuthenticatedAnalyticsRouteImport } from './routes/_authentica
 import { Route as AuthenticatedContactosRouteImport } from './routes/_authenticated/contactos'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedMapaRouteImport } from './routes/_authenticated/mapa'
+import { Route as AuthenticatedMencionesRouteImport } from './routes/_authenticated/menciones'
 import { Route as AuthenticatedMonitorRouteImport } from './routes/_authenticated/monitor'
 import { Route as AuthenticatedSeccionesRouteImport } from './routes/_authenticated/secciones'
 
@@ -53,6 +54,11 @@ const AuthenticatedMapaRoute = AuthenticatedMapaRouteImport.update({
   path: '/mapa',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedMencionesRoute = AuthenticatedMencionesRouteImport.update({
+  id: '/menciones',
+  path: '/menciones',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedMonitorRoute = AuthenticatedMonitorRouteImport.update({
   id: '/monitor',
   path: '/monitor',
@@ -71,6 +77,7 @@ export interface FileRoutesByFullPath {
   '/contactos': typeof AuthenticatedContactosRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/mapa': typeof AuthenticatedMapaRoute
+  '/menciones': typeof AuthenticatedMencionesRoute
   '/monitor': typeof AuthenticatedMonitorRoute
   '/secciones': typeof AuthenticatedSeccionesRoute
 }
@@ -81,6 +88,7 @@ export interface FileRoutesByTo {
   '/contactos': typeof AuthenticatedContactosRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/mapa': typeof AuthenticatedMapaRoute
+  '/menciones': typeof AuthenticatedMencionesRoute
   '/monitor': typeof AuthenticatedMonitorRoute
   '/secciones': typeof AuthenticatedSeccionesRoute
 }
@@ -93,6 +101,7 @@ export interface FileRoutesById {
   '/_authenticated/contactos': typeof AuthenticatedContactosRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/mapa': typeof AuthenticatedMapaRoute
+  '/_authenticated/menciones': typeof AuthenticatedMencionesRoute
   '/_authenticated/monitor': typeof AuthenticatedMonitorRoute
   '/_authenticated/secciones': typeof AuthenticatedSeccionesRoute
 }
@@ -105,6 +114,7 @@ export interface FileRouteTypes {
     | '/contactos'
     | '/dashboard'
     | '/mapa'
+    | '/menciones'
     | '/monitor'
     | '/secciones'
   fileRoutesByTo: FileRoutesByTo
@@ -115,6 +125,7 @@ export interface FileRouteTypes {
     | '/contactos'
     | '/dashboard'
     | '/mapa'
+    | '/menciones'
     | '/monitor'
     | '/secciones'
   id:
@@ -126,6 +137,7 @@ export interface FileRouteTypes {
     | '/_authenticated/contactos'
     | '/_authenticated/dashboard'
     | '/_authenticated/mapa'
+    | '/_authenticated/menciones'
     | '/_authenticated/monitor'
     | '/_authenticated/secciones'
   fileRoutesById: FileRoutesById
@@ -187,6 +199,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMapaRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/menciones': {
+      id: '/_authenticated/menciones'
+      path: '/menciones'
+      fullPath: '/menciones'
+      preLoaderRoute: typeof AuthenticatedMencionesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/monitor': {
       id: '/_authenticated/monitor'
       path: '/monitor'
@@ -209,6 +228,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedContactosRoute: typeof AuthenticatedContactosRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedMapaRoute: typeof AuthenticatedMapaRoute
+  AuthenticatedMencionesRoute: typeof AuthenticatedMencionesRoute
   AuthenticatedMonitorRoute: typeof AuthenticatedMonitorRoute
   AuthenticatedSeccionesRoute: typeof AuthenticatedSeccionesRoute
 }
@@ -218,6 +238,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedContactosRoute: AuthenticatedContactosRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedMapaRoute: AuthenticatedMapaRoute,
+  AuthenticatedMencionesRoute: AuthenticatedMencionesRoute,
   AuthenticatedMonitorRoute: AuthenticatedMonitorRoute,
   AuthenticatedSeccionesRoute: AuthenticatedSeccionesRoute,
 }
