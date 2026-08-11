@@ -59,7 +59,7 @@ function AnalyticsPage() {
         title="Analytics demográfico"
         description="Todos los indicadores se calculan sobre agregados territoriales. No se realizan inferencias individuales ni políticas."
         actions={
-          <Button variant="outline" onClick={() => exportCSV("analytics-municipios", byMuni)}>
+          <Button variant="outline" onClick={() => exportCSV("analytics-municipios", byMuni.map((r) => ({ ...r })))}>
             <Download className="mr-2 h-4 w-4" /> Exportar
           </Button>
         }

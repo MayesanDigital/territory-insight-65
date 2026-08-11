@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedAnalyticsRouteImport } from './routes/_authenticated/analytics'
 import { Route as AuthenticatedContactosRouteImport } from './routes/_authenticated/contactos'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedMapaRouteImport } from './routes/_authenticated/mapa'
@@ -30,6 +31,11 @@ const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedAnalyticsRoute = AuthenticatedAnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedContactosRoute = AuthenticatedContactosRouteImport.update({
   id: '/contactos',
@@ -55,6 +61,7 @@ const AuthenticatedSeccionesRoute = AuthenticatedSeccionesRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/analytics': typeof AuthenticatedAnalyticsRoute
   '/contactos': typeof AuthenticatedContactosRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/mapa': typeof AuthenticatedMapaRoute
@@ -63,6 +70,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/analytics': typeof AuthenticatedAnalyticsRoute
   '/contactos': typeof AuthenticatedContactosRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/mapa': typeof AuthenticatedMapaRoute
@@ -73,6 +81,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/_authenticated/analytics': typeof AuthenticatedAnalyticsRoute
   '/_authenticated/contactos': typeof AuthenticatedContactosRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/mapa': typeof AuthenticatedMapaRoute
@@ -81,14 +90,28 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/auth' | '/contactos' | '/dashboard' | '/mapa' | '/secciones'
+    | '/'
+    | '/auth'
+    | '/analytics'
+    | '/contactos'
+    | '/dashboard'
+    | '/mapa'
+    | '/secciones'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/contactos' | '/dashboard' | '/mapa' | '/secciones'
+  to:
+    | '/'
+    | '/auth'
+    | '/analytics'
+    | '/contactos'
+    | '/dashboard'
+    | '/mapa'
+    | '/secciones'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/_authenticated/analytics'
     | '/_authenticated/contactos'
     | '/_authenticated/dashboard'
     | '/_authenticated/mapa'
@@ -124,6 +147,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/analytics': {
+      id: '/_authenticated/analytics'
+      path: '/analytics'
+      fullPath: '/analytics'
+      preLoaderRoute: typeof AuthenticatedAnalyticsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/contactos': {
       id: '/_authenticated/contactos'
       path: '/contactos'
@@ -156,6 +186,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAnalyticsRoute: typeof AuthenticatedAnalyticsRoute
   AuthenticatedContactosRoute: typeof AuthenticatedContactosRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedMapaRoute: typeof AuthenticatedMapaRoute
@@ -163,6 +194,7 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAnalyticsRoute: AuthenticatedAnalyticsRoute,
   AuthenticatedContactosRoute: AuthenticatedContactosRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedMapaRoute: AuthenticatedMapaRoute,
