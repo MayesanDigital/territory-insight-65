@@ -40,7 +40,10 @@ function ImportarPage() {
   };
 
   const importar = async () => {
-    if (!orgId) return toast.error("Sin organización asignada");
+    if (!orgId) {
+      toast.error("Sin organización asignada");
+      return;
+    }
     setBusy(true);
     try {
       const payload = rows.map((r) => ({

@@ -15,6 +15,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedAnalyticsRouteImport } from './routes/_authenticated/analytics'
 import { Route as AuthenticatedContactosRouteImport } from './routes/_authenticated/contactos'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedImportarRouteImport } from './routes/_authenticated/importar'
 import { Route as AuthenticatedMapaRouteImport } from './routes/_authenticated/mapa'
 import { Route as AuthenticatedMencionesRouteImport } from './routes/_authenticated/menciones'
 import { Route as AuthenticatedMonitorRouteImport } from './routes/_authenticated/monitor'
@@ -50,6 +51,11 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedImportarRoute = AuthenticatedImportarRouteImport.update({
+  id: '/importar',
+  path: '/importar',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedMapaRoute = AuthenticatedMapaRouteImport.update({
   id: '/mapa',
   path: '/mapa',
@@ -82,6 +88,7 @@ export interface FileRoutesByFullPath {
   '/analytics': typeof AuthenticatedAnalyticsRoute
   '/contactos': typeof AuthenticatedContactosRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/importar': typeof AuthenticatedImportarRoute
   '/mapa': typeof AuthenticatedMapaRoute
   '/menciones': typeof AuthenticatedMencionesRoute
   '/monitor': typeof AuthenticatedMonitorRoute
@@ -94,6 +101,7 @@ export interface FileRoutesByTo {
   '/analytics': typeof AuthenticatedAnalyticsRoute
   '/contactos': typeof AuthenticatedContactosRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/importar': typeof AuthenticatedImportarRoute
   '/mapa': typeof AuthenticatedMapaRoute
   '/menciones': typeof AuthenticatedMencionesRoute
   '/monitor': typeof AuthenticatedMonitorRoute
@@ -108,6 +116,7 @@ export interface FileRoutesById {
   '/_authenticated/analytics': typeof AuthenticatedAnalyticsRoute
   '/_authenticated/contactos': typeof AuthenticatedContactosRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/importar': typeof AuthenticatedImportarRoute
   '/_authenticated/mapa': typeof AuthenticatedMapaRoute
   '/_authenticated/menciones': typeof AuthenticatedMencionesRoute
   '/_authenticated/monitor': typeof AuthenticatedMonitorRoute
@@ -122,6 +131,7 @@ export interface FileRouteTypes {
     | '/analytics'
     | '/contactos'
     | '/dashboard'
+    | '/importar'
     | '/mapa'
     | '/menciones'
     | '/monitor'
@@ -134,6 +144,7 @@ export interface FileRouteTypes {
     | '/analytics'
     | '/contactos'
     | '/dashboard'
+    | '/importar'
     | '/mapa'
     | '/menciones'
     | '/monitor'
@@ -147,6 +158,7 @@ export interface FileRouteTypes {
     | '/_authenticated/analytics'
     | '/_authenticated/contactos'
     | '/_authenticated/dashboard'
+    | '/_authenticated/importar'
     | '/_authenticated/mapa'
     | '/_authenticated/menciones'
     | '/_authenticated/monitor'
@@ -204,6 +216,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/importar': {
+      id: '/_authenticated/importar'
+      path: '/importar'
+      fullPath: '/importar'
+      preLoaderRoute: typeof AuthenticatedImportarRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/mapa': {
       id: '/_authenticated/mapa'
       path: '/mapa'
@@ -246,6 +265,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAnalyticsRoute: typeof AuthenticatedAnalyticsRoute
   AuthenticatedContactosRoute: typeof AuthenticatedContactosRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedImportarRoute: typeof AuthenticatedImportarRoute
   AuthenticatedMapaRoute: typeof AuthenticatedMapaRoute
   AuthenticatedMencionesRoute: typeof AuthenticatedMencionesRoute
   AuthenticatedMonitorRoute: typeof AuthenticatedMonitorRoute
@@ -257,6 +277,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAnalyticsRoute: AuthenticatedAnalyticsRoute,
   AuthenticatedContactosRoute: AuthenticatedContactosRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedImportarRoute: AuthenticatedImportarRoute,
   AuthenticatedMapaRoute: AuthenticatedMapaRoute,
   AuthenticatedMencionesRoute: AuthenticatedMencionesRoute,
   AuthenticatedMonitorRoute: AuthenticatedMonitorRoute,
