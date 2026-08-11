@@ -1,6 +1,6 @@
 export function toCSV(rows: Array<Record<string, unknown>>): string {
   if (rows.length === 0) return "";
-  const headers = Object.keys(rows[0]);
+  const headers = Object.keys(rows[0]!);
   const escape = (v: unknown) => {
     const s = v === null || v === undefined ? "" : String(v);
     return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -36,7 +36,7 @@ export function exportPrintablePDF(title: string, sections: Array<{ heading: str
   const tables = sections
     .map((section) => {
       if (section.rows.length === 0) return `<h2>${section.heading}</h2><p>Sin datos.</p>`;
-      const headers = Object.keys(section.rows[0]);
+      const headers = Object.keys(section.rows[0]!);
       return `<h2>${section.heading}</h2><table><thead><tr>${headers
         .map((h) => `<th>${h}</th>`)
         .join("")}</tr></thead><tbody>${section.rows
@@ -65,7 +65,7 @@ export function exportPrintablePDF(title: string, sections: Array<{ heading: str
 /** Excel-compatible (SpreadsheetML simple / CSV con separador de tabulación). */
 export function exportExcel(filename: string, rows: Array<Record<string, unknown>>) {
   if (rows.length === 0) return;
-  const headers = Object.keys(rows[0]);
+  const headers = Object.keys(rows[0]!);
   const xml = `<?xml version="1.0"?>
 <Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
 <Worksheet ss:Name="Datos"><Table>
@@ -111,7 +111,7 @@ export function parseCSV(text: string): Array<Record<string, string>> {
     out.push(cur);
     return out.map((s) => s.trim());
   };
-  const headers = split(lines[0]);
+  const headers = split(lines[0]!);
   return lines.slice(1).map((line) => {
     const cells = split(line);
     return Object.fromEntries(headers.map((h, i) => [h, cells[i] ?? ""]));
