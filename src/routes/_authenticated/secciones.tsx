@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/table";
 import { territoryService } from "@/services/territoryService";
 import { contactsService } from "@/services/contactsService";
-import { exportCsv } from "@/lib/export";
+import { exportCSV } from "@/lib/export";
 
 export const Route = createFileRoute("/_authenticated/secciones")({
   head: () => ({
@@ -81,7 +81,7 @@ function SeccionesPage() {
         title="Secciones territoriales"
         description="Catálogo completo de unidades territoriales con indicadores agregados."
         actions={
-          <Button variant="outline" onClick={() => exportCsv("secciones", rows)}>
+          <Button variant="outline" onClick={() => exportCSV("secciones", rows)}>
             <Download className="mr-2 h-4 w-4" /> Exportar CSV
           </Button>
         }
