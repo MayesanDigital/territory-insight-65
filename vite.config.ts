@@ -12,4 +12,9 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  // Producción se despliega en Vercel. Sin esto, nitro cae en su preset por
+  // defecto (cloudflare-module) y genera un worker que Vercel no sabe servir.
+  // Dentro de un build de Lovable este override se ignora: la plataforma fuerza
+  // Cloudflare para su propio preview, así que fijarlo aquí no rompe el sync.
+  nitro: { preset: "vercel" },
 });

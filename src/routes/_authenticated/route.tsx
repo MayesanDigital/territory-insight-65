@@ -13,7 +13,17 @@ export const Route = createFileRoute("/_authenticated")({
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) throw redirect({ to: "/auth" });
-    return { user: data.user };
+
+    // Sin organización, current_org() es NULL y toda política RLS deniega: la app
+    // cargaría vacía y sin explicación. Se desvía al onboarding.
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("org_id")
+      .eq("id", data.user.id)
+      .maybeSingle();
+    if (!profile?.org_id) throw redirect({ to: "/onboarding" });
+
+    return { user: data.user, orgId: profile.org_id };
   },
   component: AuthenticatedLayout,
 });

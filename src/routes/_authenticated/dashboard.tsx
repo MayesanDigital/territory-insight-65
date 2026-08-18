@@ -25,6 +25,7 @@ import {
 
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
+import { EmptyState, ErrorState } from "@/components/query-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -72,12 +73,20 @@ function DashboardPage() {
 
   if (error) {
     return (
-      <div className="surface-card p-8 text-center">
-        <AlertTriangle className="mx-auto h-6 w-6 text-destructive" />
-        <p className="mt-3 text-sm text-muted-foreground">
-          No fue posible cargar los indicadores. Intenta de nuevo.
-        </p>
-      </div>
+      <>
+        <PageHeader
+          title="Dashboard ejecutivo"
+          description="Indicadores territoriales y demográficos presentados exclusivamente de forma agregada."
+        />
+        <ErrorState
+          error={error}
+          what="los indicadores"
+          onRetry={() => {
+            void units.refetch();
+            void contacts.refetch();
+          }}
+        />
+      </>
     );
   }
 
@@ -87,6 +96,16 @@ function DashboardPage() {
         title="Dashboard ejecutivo"
         description="Indicadores territoriales y demográficos presentados exclusivamente de forma agregada. Los contactos son registros administrativos con consentimiento."
       />
+
+      {!loading && u.length === 0 && (
+        <div className="mb-4">
+          <EmptyState
+            icon={Layers}
+            title="Todavía no hay territorio cargado"
+            description="Importa las secciones territoriales para que el panel empiece a mostrar indicadores."
+          />
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
@@ -256,7 +275,7 @@ function DashboardPage() {
             </div>
             <div className="flex items-start justify-between gap-3">
               <span>Secciones sin geometría cargada</span>
-              <Badge variant="secondary">{u.filter((x) => !x.geometry).length}</Badge>
+              <Badge variant="secondary">{u.filter((x) => !x.has_geometry).length}</Badge>
             </div>
             <div className="flex items-start justify-between gap-3">
               <span>Origen de datos territoriales</span>

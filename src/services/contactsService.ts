@@ -9,15 +9,32 @@ export interface ContactFilters {
 }
 
 export const contactsService = {
+  /**
+   * Pagina explícitamente porque PostgREST devuelve como mucho 1000 filas y no
+   * avisa de que truncó. Estos contactos alimentan el cálculo de cobertura, así
+   * que un corte silencioso no se vería como un error: se vería como una
+   * cobertura más baja de la real.
+   */
   async list(filters: ContactFilters = {}): Promise<Contact[]> {
-    let query = supabase.from("contacts").select("*").order("registered_at", { ascending: false });
-    if (filters.municipio) query = query.eq("municipio", filters.municipio);
-    if (filters.section_code) query = query.eq("section_code", filters.section_code);
-    if (filters.status) query = query.eq("status", filters.status);
-    if (filters.search) query = query.ilike("full_name", `%${filters.search}%`);
-    const { data, error } = await query;
-    if (error) throw error;
-    return data ?? [];
+    const PAGE = 1000;
+    const rows: Contact[] = [];
+    for (let from = 0; ; from += PAGE) {
+      let query = supabase
+        .from("contacts")
+        .select("*")
+        .order("registered_at", { ascending: false })
+        .range(from, from + PAGE - 1);
+      if (filters.municipio) query = query.eq("municipio", filters.municipio);
+      if (filters.section_code) query = query.eq("section_code", filters.section_code);
+      if (filters.status) query = query.eq("status", filters.status);
+      if (filters.search) query = query.ilike("full_name", `%${filters.search}%`);
+      const { data, error } = await query;
+      if (error) throw error;
+      if (!data?.length) break;
+      rows.push(...data);
+      if (data.length < PAGE) break;
+    }
+    return rows;
   },
 
   async create(payload: ContactInsert) {

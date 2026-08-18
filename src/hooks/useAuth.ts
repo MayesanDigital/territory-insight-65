@@ -3,7 +3,22 @@ import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { AppRole, Profile } from "@/types";
 
-export function useAuth() {
+export interface AuthState {
+  user: User | null;
+  profile: Profile | null;
+  roles: AppRole[];
+  orgId: string | null;
+  /** Administra datos personales y territoriales: contactos, secciones, usuarios. */
+  canAdmin: boolean;
+  /** Ejecuta análisis: monitores, fuentes y reportes. No toca datos personales. */
+  canAnalyze: boolean;
+  isSuperAdmin: boolean;
+  /** El usuario existe pero todavía no pertenece a ninguna organización. */
+  needsOnboarding: boolean;
+  loading: boolean;
+}
+
+export function useAuth(): AuthState {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [roles, setRoles] = useState<AppRole[]>([]);
@@ -46,7 +61,24 @@ export function useAuth() {
     };
   }, []);
 
-  const canWrite = roles.some((r) => r === "SUPER_ADMIN" || r === "ADMIN" || r === "ANALYST");
+  const isSuperAdmin = roles.includes("SUPER_ADMIN");
+  const orgId = profile?.org_id ?? null;
 
-  return { user, profile, roles, orgId: profile?.org_id ?? null, canWrite, loading };
+  // Espejo de can_admin() y can_analyze() en la base de datos. Aquí solo sirven
+  // para decidir qué se dibuja; la autorización real la impone RLS, así que un
+  // desajuste degrada la interfaz pero nunca abre acceso a los datos.
+  const canAdmin = isSuperAdmin || roles.includes("ADMIN");
+  const canAnalyze = canAdmin || roles.includes("ANALYST");
+
+  return {
+    user,
+    profile,
+    roles,
+    orgId,
+    canAdmin,
+    canAnalyze,
+    isSuperAdmin,
+    needsOnboarding: !loading && !!user && !orgId,
+    loading,
+  };
 }

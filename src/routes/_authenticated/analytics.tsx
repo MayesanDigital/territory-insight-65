@@ -15,12 +15,13 @@ import {
 } from "recharts";
 
 import { PageHeader } from "@/components/page-header";
+import { ErrorState } from "@/components/query-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { territoryService } from "@/services/territoryService";
 import { contactsService } from "@/services/contactsService";
-import { analyticsService } from "@/services/analyticsService";
+import { analyticsService, fetchMunicipalDemographics } from "@/services/analyticsService";
 import { exportCSV } from "@/lib/export";
 
 export const Route = createFileRoute("/_authenticated/analytics")({
@@ -46,18 +47,25 @@ function AnalyticsPage() {
   const units = useQuery({ queryKey: ["units"], queryFn: () => territoryService.list() });
   const contacts = useQuery({ queryKey: ["contacts", {}], queryFn: () => contactsService.list() });
   const loading = units.isLoading || contacts.isLoading;
+  const error = units.error ?? contacts.error ?? null;
+
+  const municipal = useQuery({
+    queryKey: ["municipal-demographics"],
+    queryFn: fetchMunicipalDemographics,
+  });
 
   const u = useMemo(() => units.data ?? [], [units.data]);
   const c = useMemo(() => contacts.data ?? [], [contacts.data]);
+  const m = useMemo(() => municipal.data ?? [], [municipal.data]);
   const byMuni = analyticsService.byMunicipio(u, c);
-  const ages = analyticsService.ageDistribution(u);
+  const ages = analyticsService.prdAgeDistribution(m);
   const monthly = analyticsService.monthlyRegistrations(c);
 
   return (
     <>
       <PageHeader
         title="Analytics demográfico"
-        description="Todos los indicadores se calculan sobre agregados territoriales. No se realizan inferencias individuales ni políticas."
+        description="Indicadores sobre agregados territoriales, sin inferencias individuales ni políticas. La estructura por edad usa la escala municipal, única donde el censo publica esos rangos."
         actions={
           <Button variant="outline" onClick={() => exportCSV("analytics-municipios", byMuni.map((r) => ({ ...r })))}>
             <Download className="mr-2 h-4 w-4" /> Exportar
@@ -65,7 +73,18 @@ function AnalyticsPage() {
         }
       />
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      {error && (
+        <ErrorState
+          error={error}
+          what="los datos de analítica"
+          onRetry={() => {
+            void units.refetch();
+            void contacts.refetch();
+          }}
+        />
+      )}
+
+      <div className={`grid gap-4 lg:grid-cols-2 ${error ? "hidden" : ""}`}>
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Cobertura por municipio</CardTitle>
@@ -92,7 +111,7 @@ function AnalyticsPage() {
             <CardTitle className="text-base">Estructura por edad (agregada)</CardTitle>
           </CardHeader>
           <CardContent className="h-80">
-            {loading ? (
+            {municipal.isLoading ? (
               <Skeleton className="h-full w-full" />
             ) : (
               <ResponsiveContainer width="100%" height="100%">

@@ -1,5 +1,11 @@
 {
-  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts", "eslint.config.js"],
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "supabase/functions/_shared/**/*.ts",
+    "vite.config.ts",
+    "eslint.config.js"
+  ],
   "compilerOptions": {
     "target": "ES2022",
     "jsx": "react-jsx",
@@ -24,7 +30,11 @@
     "exactOptionalPropertyTypes": true,
     "noUncheckedSideEffectImports": true,
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      // El análisis heurístico es la misma implementación en el navegador y en
+      // las Edge Functions, y vive bajo supabase/functions/_shared para que el
+      // CLI de Supabase lo incluya al desplegar.
+      "@shared/*": ["./supabase/functions/_shared/*"]
     }
   }
 }

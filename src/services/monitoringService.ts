@@ -1,5 +1,20 @@
 import { supabase } from "@/integrations/supabase/client";
+import { extractTopics, mentionText } from "@/services/aiAnalysisService";
 import type { WebMention, WebMonitor, WebSource } from "@/types";
+
+export interface IngestResult {
+  status: "ok" | "partial" | "error";
+  sources_checked: number;
+  /** Resultados que devolvieron las fuentes, antes de filtrar. */
+  items_fetched: number;
+  /** Descartados por no mencionar al sujeto o por repetirse. */
+  items_discarded: number;
+  items_found: number;
+  items_new: number;
+  total_mentions: number;
+  topics: string[];
+  errors: Array<{ url: string; message: string }>;
+}
 
 export const monitoringService = {
   async monitors(): Promise<WebMonitor[]> {
@@ -38,6 +53,49 @@ export const monitoringService = {
     return data ?? [];
   },
 
+  /**
+   * Crea el monitor si no existe y lo devuelve.
+   *
+   * Va por RPC para reutilizar el monitor cuando el término ya está vigilado:
+   * buscar dos veces lo mismo no debe generar monitores duplicados.
+   */
+  async createOrGetMonitor(query: string, name?: string, subjectType = "person") {
+    const { data, error } = await supabase.rpc("create_monitor", {
+      _name: name ?? query,
+      _query: query,
+      _subject_type: subjectType,
+    });
+    if (error) throw error;
+    return data as string;
+  },
+
+  /**
+   * Ejecuta la ingesta en la Edge Function.
+   *
+   * El trabajo vive en el servidor porque el navegador no puede consultar
+   * feeds de otros dominios: CORS lo bloquea, y además así el crawler se
+   * identifica con un único User-Agent y respeta un ritmo de peticiones.
+   */
+  async runMonitor(monitorId: string): Promise<IngestResult> {
+    const { data, error } = await supabase.functions.invoke<IngestResult>("monitor-ingest", {
+      body: { monitor_id: monitorId },
+    });
+    if (error) throw new Error(error.message);
+    if (!data) throw new Error("La ingesta no devolvió resultados");
+    return data;
+  },
+
+  async runs(monitorId: string) {
+    const { data, error } = await supabase
+      .from("monitor_runs")
+      .select("*")
+      .eq("monitor_id", monitorId)
+      .order("started_at", { ascending: false })
+      .limit(10);
+    if (error) throw error;
+    return data ?? [];
+  },
+
   async mentions(monitorId?: string): Promise<WebMention[]> {
     let query = supabase
       .from("web_mentions")
@@ -59,20 +117,16 @@ export interface MentionAnalytics {
   timeline: Array<{ date: string; total: number; positive: number; negative: number }>;
   sources: Array<{ domain: string; total: number }>;
   topics: Array<{ topic: string; total: number }>;
-  words: Array<{ word: string; total: number }>;
+  /** Términos con mayor peso TF-IDF; `total` es su frecuencia bruta. */
+  words: Array<{ word: string; total: number; weight: number }>;
   trend: number;
 }
-
-const STOP_WORDS = new Set([
-  "de","la","el","en","y","a","los","las","del","un","una","por","con","para","que","al","se","su","es","como","más","sobre","sus","o","the",
-]);
 
 export function analyzeMentions(mentions: WebMention[]): MentionAnalytics {
   const sentiment = { positive: 0, neutral: 0, negative: 0 };
   const byDay = new Map<string, { total: number; positive: number; negative: number }>();
   const bySource = new Map<string, number>();
   const byTopic = new Map<string, number>();
-  const byWord = new Map<string, number>();
   let reach = 0;
   let engagement = 0;
 
@@ -91,12 +145,15 @@ export function analyzeMentions(mentions: WebMention[]): MentionAnalytics {
 
     if (m.source_domain) bySource.set(m.source_domain, (bySource.get(m.source_domain) ?? 0) + 1);
     if (m.topic) byTopic.set(m.topic, (byTopic.get(m.topic) ?? 0) + 1);
-
-    for (const raw of `${m.title} ${m.excerpt ?? ""}`.toLowerCase().split(/[^a-záéíóúñü]+/)) {
-      if (raw.length < 4 || STOP_WORDS.has(raw)) continue;
-      byWord.set(raw, (byWord.get(raw) ?? 0) + 1);
-    }
   }
+
+  // TF-IDF sobre el corpus en vez de conteo bruto: sin IDF, los términos que
+  // aparecen en todas las notas dominan la nube y no dicen nada.
+  const words = extractTopics(mentions.map(mentionText), 30).map((t) => ({
+    word: t.topic,
+    total: t.count,
+    weight: t.weight,
+  }));
 
   const timeline = Array.from(byDay.entries())
     .map(([date, v]) => ({ date, ...v }))
@@ -119,7 +176,7 @@ export function analyzeMentions(mentions: WebMention[]): MentionAnalytics {
     timeline,
     sources: rank(bySource, "domain").slice(0, 10) as MentionAnalytics["sources"],
     topics: rank(byTopic, "topic").slice(0, 10) as MentionAnalytics["topics"],
-    words: rank(byWord, "word").slice(0, 30) as MentionAnalytics["words"],
+    words,
     trend: Math.round(((second - first) / first) * 100),
   };
 }

@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Download } from "lucide-react";
+import { Download, Layers } from "lucide-react";
 
 import { PageHeader } from "@/components/page-header";
+import { EmptyState, ErrorState } from "@/components/query-state";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -97,6 +98,26 @@ function SeccionesPage() {
           />
           {units.isLoading ? (
             <Skeleton className="h-80 w-full" />
+          ) : units.isError ? (
+            <ErrorState
+              error={units.error}
+              what="las secciones"
+              onRetry={() => void units.refetch()}
+            />
+          ) : rows.length === 0 ? (
+            <EmptyState
+              icon={Layers}
+              title={
+                units.data?.length
+                  ? "Ninguna sección coincide con la búsqueda"
+                  : "Todavía no hay secciones cargadas"
+              }
+              description={
+                units.data?.length
+                  ? "Prueba con otro código de sección o municipio."
+                  : "Importa el territorio desde el módulo de importación para empezar."
+              }
+            />
           ) : (
             <div className="max-h-[600px] overflow-auto rounded-md border border-border">
               <Table>

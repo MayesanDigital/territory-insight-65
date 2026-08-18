@@ -167,4 +167,16 @@
 .leaflet-container {
   background: var(--color-muted);
   font-family: var(--font-sans);
+
+  /*
+   * Leaflet reparte z-index de hasta 1000 entre sus paneles y controles
+   * (.leaflet-pane 400-700, .leaflet-top/.leaflet-bottom 1000). El contenedor
+   * es `position: relative` pero sin z-index, así que no abre un contexto de
+   * apilamiento propio y esos valores acaban compitiendo en la raíz contra los
+   * diálogos de la aplicación, que usan z-50: el mapa tapaba los modales.
+   *
+   * `isolation: isolate` fuerza el contexto y encierra toda esa escala dentro
+   * del mapa, sin tener que ir subiendo el z-index de cada overlay.
+   */
+  isolation: isolate;
 }

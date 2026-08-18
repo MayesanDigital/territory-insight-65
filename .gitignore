@@ -16,6 +16,19 @@ dist-ssr
 .nitro
 *.local
 
+# Datos fuente descargados del INE/INEGI. Son públicos pero pesados y
+# reproducibles con scripts/descargar-ine.ps1; no tienen por qué versionarse.
+data/
+
+# Estado local de la CLI de Supabase (ref enlazada, versiones detectadas).
+supabase/.temp/
+
+# Environment — nunca versionar secretos. Usa .env.example como plantilla.
+.env
+.env.*
+!.env.example
+.vercel
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars

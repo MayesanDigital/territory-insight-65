@@ -2,19 +2,45 @@ import { useEffect, useMemo, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-import type { TerritorialUnit } from "@/types";
+import type { Json } from "@/integrations/supabase/types";
+import { CENSUS_DISPLAY_LABEL, type TerritorialUnit } from "@/types";
 
 export type MapMetric = "population" | "contacts" | "coverage" | "density";
 
+/**
+ * Contactos de una sección, desglosados por categoría de seguimiento.
+ * `total` incluye los contactos sin categorizar (altas anteriores al campo),
+ * por lo que fidelizado + seguro no tiene por qué sumar total.
+ */
+export interface SectionContacts {
+  total: number;
+  fidelizado: number;
+  seguro: number;
+}
+
+export const SIN_CONTACTOS: SectionContacts = { total: 0, fidelizado: 0, seguro: 0 };
+
 interface Props {
   units: TerritorialUnit[];
-  contactCounts: Record<string, number>;
+  /**
+   * Polígonos por id de sección, solo de las secciones actualmente acotadas.
+   * Las que no aparezcan aquí se dibujan como punto en su centroide: es lo que
+   * permite mostrar el estado completo sin descargar 15 MB de geometría.
+   */
+  geometryById: Record<string, Json>;
+  contactCounts: Record<string, SectionContacts>;
   metric: MapMetric;
   selectedId?: string | null;
   onSelect: (unit: TerritorialUnit) => void;
+  /** Abre el alta de contacto ya situada en esta sección. */
+  onAddContact?: (unit: TerritorialUnit) => void;
+  /** Oculta el botón de alta cuando el rol no puede escribir. */
+  canAddContact?: boolean;
 }
 
 const SCALE = ["#F1E7D8", "#E0C89B", "#C79E5E", "#A8763E", "#7A4E23"];
+const SELECTED = "#7A2E2E";
+const BORDER = "#8b7a5f";
 
 function metricValue(u: TerritorialUnit, contacts: number, metric: MapMetric) {
   switch (metric) {
@@ -29,28 +55,192 @@ function metricValue(u: TerritorialUnit, contacts: number, metric: MapMetric) {
   }
 }
 
+const fmt = (n: number) => n.toLocaleString("es-MX");
+const pct = (part: number, whole: number) => (whole > 0 ? Math.round((part / whole) * 100) : 0);
+
+/** Barra proporcional para el popup. Leaflet solo acepta HTML, no JSX. */
+function bar(label: string, value: number, total: number, color: string) {
+  const p = pct(value, total);
+  return `
+    <div style="display:flex;align-items:center;gap:6px;margin:2px 0">
+      <span style="width:44px;font-size:11px;opacity:.75">${label}</span>
+      <span style="flex:1;height:7px;background:#EFE9DE;border-radius:4px;overflow:hidden">
+        <span style="display:block;height:100%;width:${p}%;background:${color}"></span>
+      </span>
+      <span style="width:64px;text-align:right;font-size:11px;font-variant-numeric:tabular-nums">
+        ${fmt(value)} <span style="opacity:.6">${p}%</span>
+      </span>
+    </div>`;
+}
+
+/**
+ * El popup se construye como elemento del DOM, no como cadena, para poder
+ * colgarle un listener real al botón. Con `bindPopup(string)` Leaflet reescribe
+ * el HTML en cada apertura y cualquier manejador se pierde.
+ */
+function buildPopup(
+  u: TerritorialUnit,
+  contacts: SectionContacts,
+  onAdd: ((unit: TerritorialUnit) => void) | undefined,
+  canAdd: boolean,
+): HTMLElement {
+  const el = document.createElement("div");
+  el.innerHTML = popupHtml(u, contacts);
+
+  if (onAdd && canAdd) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = "+ Registrar contacto en esta sección";
+    button.style.cssText = [
+      "width:100%",
+      "margin-top:10px",
+      "padding:7px 10px",
+      "border:0",
+      "border-radius:6px",
+      "background:#7A2E2E",
+      "color:#fff",
+      "font-family:inherit",
+      "font-size:12px",
+      "font-weight:600",
+      "cursor:pointer",
+    ].join(";");
+    button.addEventListener("click", (e) => {
+      e.stopPropagation();
+      onAdd(u);
+    });
+    el.appendChild(button);
+  }
+
+  return el;
+}
+
+function popupHtml(u: TerritorialUnit, contacts: SectionContacts) {
+  const total = u.population ?? 0;
+  const cobertura = total > 0 ? ((contacts.total / total) * 100).toFixed(2) : "0.00";
+  const sinCategoria = contacts.total - contacts.fidelizado - contacts.seguro;
+
+  const demografia = u.has_demographics
+    ? `
+      <div style="margin-top:8px">
+        <p style="margin:0 0 3px;font-size:10px;letter-spacing:.09em;text-transform:uppercase;opacity:.6">Edad</p>
+        ${bar("0–17", u.pop_0_17, total, "#A8763E")}
+        ${bar("18–24", u.pop_18_24, total, "#C79E5E")}
+        ${bar("25–59", u.pop_25_59, total, "#8B6B3E")}
+        ${bar("60+", u.pop_60_plus, total, "#7A4E23")}
+      </div>
+      <div style="margin-top:8px">
+        <p style="margin:0 0 3px;font-size:10px;letter-spacing:.09em;text-transform:uppercase;opacity:.6">Género</p>
+        ${bar("Mujeres", u.women, total, "#7A2E2E")}
+        ${bar("Hombres", u.men, total, "#4A5D6B")}
+        ${u.gender_other > 0 ? bar("Otro", u.gender_other, total, "#9A9A9A") : ""}
+      </div>`
+    : `<p style="margin:8px 0 0;font-size:11px;color:#9B4A4A">
+         Sin datos censales: sección creada tras el censo.
+       </p>`;
+
+  return `
+    <div style="font-family:Manrope,system-ui,sans-serif;min-width:250px;color:#1C1A17">
+      <strong style="font-size:14px">Sección ${u.section_code}</strong>
+      <div style="opacity:.7;font-size:11px">
+        ${u.municipio}${u.section_type ? ` · ${u.section_type}` : ""}${
+          u.district !== null ? ` · Distrito ${u.district}` : ""
+        }
+      </div>
+      <hr style="margin:6px 0;border:0;border-top:1px solid #E4DCCD"/>
+      <div style="display:flex;justify-content:space-between;font-size:12px">
+        <span>Población</span><b>${fmt(total)}</b>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px">
+        <span>Hogares</span><b>${fmt(u.households)}</b>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px">
+        <span>Contactos</span><b>${contacts.total} <span style="opacity:.6">(${cobertura}%)</span></b>
+      </div>
+      <div style="margin-top:6px;padding:6px 8px;border-radius:6px;background:#F6F1E7">
+        <div style="display:flex;justify-content:space-between;font-size:12px">
+          <span style="display:flex;align-items:center;gap:5px">
+            <span style="width:8px;height:8px;border-radius:50%;background:#7A4E23;display:inline-block"></span>
+            Fidelizados
+          </span>
+          <b>${fmt(contacts.fidelizado)}</b>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-top:3px">
+          <span style="display:flex;align-items:center;gap:5px">
+            <span style="width:8px;height:8px;border-radius:50%;background:#4A5D6B;display:inline-block"></span>
+            Seguros
+          </span>
+          <b>${fmt(contacts.seguro)}</b>
+        </div>
+        ${
+          sinCategoria > 0
+            ? `<div style="display:flex;justify-content:space-between;font-size:11px;margin-top:3px;opacity:.6">
+                 <span>Sin categorizar</span><b>${fmt(sinCategoria)}</b>
+               </div>`
+            : ""
+        }
+      </div>
+      ${demografia}
+      <p style="margin:8px 0 0;font-size:10px;opacity:.55">${CENSUS_DISPLAY_LABEL}</p>
+    </div>`;
+}
+
 export default function TerritoryMap({
   units,
+  geometryById,
   contactCounts,
   metric,
   selectedId,
   onSelect,
+  onAddContact,
+  canAddContact = false,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
+  /**
+   * Capa dibujada por id de sección, para poder resaltar sin volver a dibujar.
+   * Se guarda el grupo GeoJSON completo, no sus sublayers: un MultiPolygon
+   * tiene varias y quedarse con la última dejaría el resto sin resaltar.
+   */
+  const shapesRef = useRef(
+    new Map<string, { setStyle: (s: L.PathOptions) => unknown; bringToFront: () => unknown }>(),
+  );
+
+  // El manejador se lee por referencia para que cambiar de callback no cuente
+  // como motivo para redibujar el mapa entero.
+  const onSelectRef = useRef(onSelect);
+  onSelectRef.current = onSelect;
+  const onAddRef = useRef(onAddContact);
+  onAddRef.current = onAddContact;
+
+  /**
+   * Sección cuyo popup está abierto. Al guardar un contacto cambian los
+   * conteos, el mapa se redibuja y el popup se destruiría; con esto se vuelve a
+   * abrir ya con la cifra actualizada.
+   */
+  const openPopupIdRef = useRef<string | null>(null);
+  /** Capa a la que está atado el popup de cada sección. */
+  const popupOwnersRef = useRef(new Map<string, L.Layer>());
 
   const values = useMemo(
-    () => units.map((u) => metricValue(u, contactCounts[u.section_code] ?? 0, metric)),
+    () => units.map((u) => metricValue(u, (contactCounts[u.section_code] ?? SIN_CONTACTOS).total, metric)),
     [units, contactCounts, metric],
   );
   const max = Math.max(...values, 1);
+
+  // Reencuadrar solo cuando cambia el CONJUNTO dibujado. Si dependiera de cada
+  // render, seleccionar una sección devolvería la vista al estado completo y
+  // parecería que el mapa "se aleja solo".
+  const fitKey = `${units.length}|${Object.keys(geometryById).length}|${units[0]?.id ?? ""}|${
+    units[units.length - 1]?.id ?? ""
+  }`;
+  const lastFitRef = useRef<string>("");
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     const map = L.map(containerRef.current, { zoomControl: true, attributionControl: true }).setView(
       [22.77, -102.58],
-      9,
+      8,
     );
     L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
       attribution: "&copy; OpenStreetMap &copy; CARTO",
@@ -62,70 +252,100 @@ export default function TerritoryMap({
       map.remove();
       mapRef.current = null;
       layerRef.current = null;
+      shapesRef.current.clear();
+      popupOwnersRef.current.clear();
     };
   }, []);
 
+  // --- Dibujar. Deliberadamente sin `selectedId` entre las dependencias: ---
+  // limpiar las capas aquí destruiría el popup recién abierto por el clic.
   useEffect(() => {
     const map = mapRef.current;
     const layer = layerRef.current;
     if (!map || !layer) return;
-    layer.clearLayers();
 
+    layer.clearLayers();
+    shapesRef.current.clear();
+    popupOwnersRef.current.clear();
     const bounds: L.LatLngExpression[] = [];
 
     units.forEach((u, i) => {
-      const contacts = contactCounts[u.section_code] ?? 0;
+      const contacts = contactCounts[u.section_code] ?? SIN_CONTACTOS;
       const value = values[i] ?? 0;
       const idx = Math.min(SCALE.length - 1, Math.floor((value / max) * SCALE.length));
       const color = SCALE[idx] ?? SCALE[0]!;
-      const popup = `
-        <div style="font-family:Manrope,sans-serif;min-width:180px">
-          <strong>Sección ${u.section_code}</strong><br/>
-          <span style="opacity:.7">${u.municipio}${u.localidad ? " · " + u.localidad : ""}</span>
-          <hr style="margin:6px 0;border-color:#e4dccd"/>
-          Población: <b>${(u.population ?? 0).toLocaleString("es-MX")}</b><br/>
-          Hogares: <b>${(u.households ?? 0).toLocaleString("es-MX")}</b><br/>
-          Contactos: <b>${contacts}</b>
-        </div>`;
+      const content = () => buildPopup(u, contacts, onAddRef.current, canAddContact);
 
-      if (u.geometry) {
-        const poly = L.geoJSON(u.geometry as never, {
-          style: {
-            color: selectedId === u.id ? "#7A2E2E" : "#8b7a5f",
-            weight: selectedId === u.id ? 3 : 1,
-            fillColor: color,
-            fillOpacity: 0.75,
-          },
+      const track = (l: L.Layer) => {
+        l.on("popupopen", () => {
+          openPopupIdRef.current = u.id;
         });
-        poly.on("click", () => onSelect(u));
-        poly.bindPopup(popup);
+        l.on("popupclose", () => {
+          if (openPopupIdRef.current === u.id) openPopupIdRef.current = null;
+        });
+      };
+
+      const geometry = geometryById[u.id];
+      if (geometry) {
+        const poly = L.geoJSON(geometry as never, {
+          style: { color: BORDER, weight: 1, fillColor: color, fillOpacity: 0.75 },
+        });
+        poly.on("click", () => onSelectRef.current(u));
+        poly.bindPopup(content, { maxWidth: 340, minWidth: 260 });
+        track(poly);
         poly.addTo(layer);
+        shapesRef.current.set(u.id, poly);
+        popupOwnersRef.current.set(u.id, poly);
         const b = poly.getBounds();
         if (b.isValid()) bounds.push(b.getNorthEast(), b.getSouthWest());
       } else if (u.centroid_lat != null && u.centroid_lng != null) {
         const marker = L.circleMarker([u.centroid_lat, u.centroid_lng], {
-          radius: 8,
-          color: "#7A2E2E",
-          weight: selectedId === u.id ? 3 : 1,
+          radius: 5,
+          color: BORDER,
+          weight: 1,
           fillColor: color,
           fillOpacity: 0.85,
         });
-        marker.on("click", () => onSelect(u));
-        marker.bindPopup(popup);
+        marker.on("click", () => onSelectRef.current(u));
+        marker.bindPopup(content, { maxWidth: 340, minWidth: 260 });
+        track(marker);
         marker.addTo(layer);
+        shapesRef.current.set(u.id, marker);
+        popupOwnersRef.current.set(u.id, marker);
         bounds.push([u.centroid_lat, u.centroid_lng]);
       }
     });
 
-    if (bounds.length) {
+    if (bounds.length && lastFitRef.current !== fitKey) {
+      lastFitRef.current = fitKey;
       map.fitBounds(L.latLngBounds(bounds).pad(0.15));
     }
-  }, [units, contactCounts, metric, selectedId, max, values, onSelect]);
+
+    // Reabrir el popup que estaba abierto antes de redibujar. Es lo que hace
+    // que, tras registrar un contacto, la ficha reaparezca con el conteo nuevo
+    // en vez de desaparecer.
+    const reopen = openPopupIdRef.current;
+    if (reopen) {
+      const owner = popupOwnersRef.current.get(reopen);
+      if (owner) owner.openPopup();
+    }
+  }, [units, geometryById, contactCounts, metric, max, values, fitKey, canAddContact]);
+
+  // --- Resaltar. Solo cambia el estilo; nunca redibuja ni mueve la vista. ---
+  useEffect(() => {
+    for (const [id, shape] of shapesRef.current) {
+      const active = id === selectedId;
+      shape.setStyle({ color: active ? SELECTED : BORDER, weight: active ? 3 : 1 });
+      if (active) shape.bringToFront();
+    }
+  }, [selectedId, units, geometryById]);
 
   return (
-    <div className="relative h-full w-full overflow-hidden rounded-lg border border-border">
+    // `isolate` mantiene todo el apilamiento del mapa —capas de Leaflet y esta
+    // leyenda— dentro de su propio contexto, para que no tape los diálogos.
+    <div className="relative isolate h-full w-full overflow-hidden rounded-lg border border-border">
       <div ref={containerRef} className="h-full w-full" />
-      <div className="pointer-events-none absolute bottom-3 left-3 z-[400] rounded-md border border-border bg-card/95 p-3 text-xs shadow-sm">
+      <div className="pointer-events-none absolute bottom-3 left-3 z-10 rounded-md border border-border bg-card/95 p-3 text-xs shadow-sm">
         <p className="mb-2 font-medium uppercase tracking-wider">Escala</p>
         <div className="flex items-center gap-1">
           {SCALE.map((c) => (

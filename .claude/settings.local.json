@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(git clone https://github.com/MayesanDigital/territory-insight-65.git \"C:\\\\Users\\\\MAYESOFT\\\\Pictures\\\\mi empresa\\\\Maps Candidato\")"
+    ]
+  }
+}
