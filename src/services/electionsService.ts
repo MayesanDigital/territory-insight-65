@@ -3,10 +3,27 @@ import type { SectionElectionResult } from "@/types";
 
 export type SectionElectionRow = SectionElectionResult;
 
-/** Un bloque político dentro del resultado de una sección. */
+/** Fuerza política de la sección, ya agrupada según la coalición real. */
 export interface BloqueResultado {
   bloque: string;
   etiqueta: string;
+  votos: number;
+  porcentaje: number;
+  /** Siglas de los partidos que la integran en ese municipio. */
+  partidos?: string[];
+}
+
+/** Voto propio de un partido, sin agrupar. Cifra literal del acta. */
+export interface VotoPartido {
+  siglas: string;
+  nombre: string;
+  votos: number;
+  porcentaje: number;
+}
+
+/** Voto emitido marcando varios partidos aliados a la vez. */
+export interface VotoCoalicion {
+  siglas: string;
   votos: number;
   porcentaje: number;
 }
@@ -21,10 +38,17 @@ export interface ResultadoSeccion {
   participacion: number | null;
   ganador: string | null;
   bloques: BloqueResultado[];
+  partidos: VotoPartido[];
+  coaliciones: VotoCoalicion[];
   fuente: string;
 }
 
+type PartidosJson = { partidos?: VotoPartido[]; coaliciones?: VotoCoalicion[] };
+
 function aResultado(row: SectionElectionRow): ResultadoSeccion {
+  // Ambos campos son jsonb; el importador garantiza estas formas.
+  const detalle = (row.partidos as unknown as PartidosJson) ?? {};
+
   return {
     año: row.election_year,
     tipo: row.election_type,
@@ -34,8 +58,9 @@ function aResultado(row: SectionElectionRow): ResultadoSeccion {
     votosNulos: row.votos_nulos,
     participacion: row.participacion,
     ganador: row.ganador,
-    // `resultados` es jsonb; el importador garantiza esta forma.
     bloques: (row.resultados as unknown as BloqueResultado[]) ?? [],
+    partidos: detalle.partidos ?? [],
+    coaliciones: detalle.coaliciones ?? [],
     fuente: row.source,
   };
 }
@@ -54,9 +79,9 @@ export const electionsService = {
   },
 
   /**
-   * Fuerza ganadora por sección, para pintar el mapa. Solo trae las tres
-   * columnas necesarias: con ~1,800 secciones por proceso, seleccionar el
-   * jsonb completo serían varios MB por carga del mapa.
+   * Fuerza ganadora por sección, para pintar el mapa. Solo trae las columnas
+   * necesarias: con ~1,800 secciones por proceso, seleccionar los jsonb completos
+   * serían varios MB por carga del mapa.
    */
   async ganadores(year: number): Promise<Record<string, string | null>> {
     const { data, error } = await supabase

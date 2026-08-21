@@ -794,6 +794,7 @@ export type Database = {
           no_registrados: number
           org_id: string
           participacion: number | null
+          partidos: Json
           resultados: Json
           section_code: string
           source: string
@@ -812,6 +813,7 @@ export type Database = {
           no_registrados?: number
           org_id: string
           participacion?: number | null
+          partidos?: Json
           resultados?: Json
           section_code: string
           source: string
@@ -830,6 +832,7 @@ export type Database = {
           no_registrados?: number
           org_id?: string
           participacion?: number | null
+          partidos?: Json
           resultados?: Json
           section_code?: string
           source?: string
