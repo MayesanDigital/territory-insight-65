@@ -4,6 +4,8 @@ type Views = Database["public"]["Views"];
 type Tables = Database["public"]["Tables"];
 
 export type SectionElectionResult = Tables["section_election_results"]["Row"];
+export type Candidate = Tables["candidates"]["Row"];
+export type SectionGoal = Tables["section_goals"]["Row"];
 export type Contact = Tables["contacts"]["Row"];
 export type ContactInsert = Tables["contacts"]["Insert"];
 export type WebMonitor = Tables["web_monitors"]["Row"];

@@ -163,6 +163,84 @@ export type Database = {
           },
         ]
       }
+      candidates: {
+        Row: {
+          cargo: string | null
+          created_at: string
+          distrito: string | null
+          eslogan: string | null
+          fecha_eleccion: string | null
+          full_name: string
+          id: string
+          municipio: string | null
+          org_id: string
+          partido: string | null
+          photo_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          cargo?: string | null
+          created_at?: string
+          distrito?: string | null
+          eslogan?: string | null
+          fecha_eleccion?: string | null
+          full_name: string
+          id?: string
+          municipio?: string | null
+          org_id: string
+          partido?: string | null
+          photo_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cargo?: string | null
+          created_at?: string
+          distrito?: string | null
+          eslogan?: string | null
+          fecha_eleccion?: string | null
+          full_name?: string
+          id?: string
+          municipio?: string | null
+          org_id?: string
+          partido?: string | null
+          photo_url?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      section_goals: {
+        Row: {
+          created_at: string
+          id: string
+          meta_contactos: number
+          notas: string | null
+          org_id: string
+          section_code: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          meta_contactos?: number
+          notas?: string | null
+          org_id: string
+          section_code: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          meta_contactos?: number
+          notas?: string | null
+          org_id?: string
+          section_code?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       contacts: {
         Row: {
           address: string | null

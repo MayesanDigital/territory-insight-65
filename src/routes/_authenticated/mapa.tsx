@@ -255,7 +255,10 @@ function MapaPage() {
                   }%`}
                 />
 
-                <SectionContactBreakdown counts={counts[selected.section_code] ?? SIN_CONTACTOS} />
+                <SectionContactBreakdown
+                  counts={counts[selected.section_code] ?? SIN_CONTACTOS}
+                  sectionCode={selected.section_code}
+                />
 
                 <SectionElectionComparison sectionCode={selected.section_code} />
 

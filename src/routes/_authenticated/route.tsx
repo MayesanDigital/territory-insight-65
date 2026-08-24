@@ -3,27 +3,54 @@ import { LogOut, Moon, Sun } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { AppSidebar } from "@/components/app-sidebar";
+import { CandidateHeader } from "@/components/candidate-header";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/hooks/useAuth";
 
+/**
+ * Organización del usuario, recordada entre navegaciones.
+ *
+ * `beforeLoad` corre en CADA cambio de vista. Consultar `profiles` cada vez
+ * añadía un viaje de red por clic y, si fallaba, tumbaba la navegación entera
+ * mostrando el botón de reintentar. La organización de un usuario no cambia
+ * mientras dura la sesión, así que basta con resolverla una vez.
+ */
+let orgCache: { userId: string; orgId: string } | null = null;
+
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
   beforeLoad: async () => {
-    const { data, error } = await supabase.auth.getUser();
-    if (error || !data.user) throw redirect({ to: "/auth" });
+    // getSession() lee el token del almacenamiento local; getUser() lo valida
+    // contra el servidor en cada llamada. Para decidir si se pinta la interfaz
+    // basta lo primero: la autorización real la impone RLS en cada consulta, de
+    // modo que un token caducado devuelve datos vacíos, nunca datos ajenos.
+    const { data: sesion } = await supabase.auth.getSession();
+    const user = sesion.session?.user;
+    if (!user) throw redirect({ to: "/auth" });
+
+    if (orgCache?.userId === user.id) {
+      return { user, orgId: orgCache.orgId };
+    }
+
+    const { data: profile, error } = await supabase
+      .from("profiles")
+      .select("org_id")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    // Un fallo de red al leer el perfil no significa que el usuario no tenga
+    // organización. Mandarlo al onboarding por un corte pasajero le haría perder
+    // el contexto, así que se deja pasar y la vista se encarga de su propio error.
+    if (error) return { user, orgId: null };
 
     // Sin organización, current_org() es NULL y toda política RLS deniega: la app
     // cargaría vacía y sin explicación. Se desvía al onboarding.
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("org_id")
-      .eq("id", data.user.id)
-      .maybeSingle();
     if (!profile?.org_id) throw redirect({ to: "/onboarding" });
 
-    return { user: data.user, orgId: profile.org_id };
+    orgCache = { userId: user.id, orgId: profile.org_id };
+    return { user, orgId: profile.org_id };
   },
   component: AuthenticatedLayout,
 });
@@ -34,6 +61,7 @@ function AuthenticatedLayout() {
   const navigate = useNavigate();
 
   const signOut = async () => {
+    orgCache = null;
     await supabase.auth.signOut();
     navigate({ to: "/auth", replace: true });
   };
@@ -64,6 +92,7 @@ function AuthenticatedLayout() {
               </Button>
             </div>
           </header>
+          <CandidateHeader />
           <main className="flex-1 p-4 md:p-6">
             <Outlet />
           </main>

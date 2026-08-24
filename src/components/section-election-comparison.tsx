@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { ChevronDown, ChevronRight } from "lucide-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { electionsService, type ResultadoSeccion } from "@/services/electionsService";
@@ -18,6 +20,12 @@ const COLOR_PARTIDO: Record<string, string> = {
   MC: "#C97B2A",
   NA: "#6B7BA8",
   PES: "#7A5C9E",
+  ES: "#7A5C9E",
+  RSP: "#8C6D8C",
+  FXM: "#B07A5A",
+  FMZ: "#B07A5A",
+  MAZ: "#7C8B6B",
+  RPZ: "#9A7B4F",
 };
 
 const COLOR_NEUTRO = "#9A9A9A";
@@ -84,9 +92,11 @@ export function SectionElectionComparison({ sectionCode }: { sectionCode: string
 }
 
 function FilaEleccion({ proceso }: { proceso: ResultadoSeccion }) {
-  const ganador = proceso.bloques[0];
-  const top3 = proceso.partidos.slice(0, 3);
+  // Las elecciones más recientes se abren solas; el histórico queda plegado para
+  // que la ficha de la sección no obligue a desplazarse durante media pantalla.
+  const [abierto, setAbierto] = useState(proceso.año >= 2024);
 
+  const ganador = proceso.bloques[0];
   if (!ganador) {
     return (
       <div className="flex items-center justify-between px-2.5 py-2 text-xs">
@@ -99,10 +109,9 @@ function FilaEleccion({ proceso }: { proceso: ResultadoSeccion }) {
   // Margen sobre el segundo lugar: distingue una sección disputada de una segura.
   const segundo = proceso.bloques[1];
   const margen = segundo ? ganador.porcentaje - segundo.porcentaje : ganador.porcentaje;
-
-  // Si la fuerza ganadora es una coalición, conviene decirlo: su cifra no es la
-  // de un solo partido sino la suma de los aliados más el voto conjunto.
   const esCoalicion = (ganador.partidos?.length ?? 0) > 1;
+
+  const votosCoalicion = proceso.coaliciones.reduce((a, c) => a + c.votos, 0);
 
   return (
     <div className="px-2.5 py-2.5">
@@ -127,34 +136,96 @@ function FilaEleccion({ proceso }: { proceso: ResultadoSeccion }) {
         {segundo ? `${margen.toFixed(1)} pts sobre ${segundo.etiqueta}` : "sin rival"}
       </p>
 
-      {top3.length > 0 && (
-        <div className="mt-2 rounded-md bg-muted/40 px-2 py-1.5">
-          <p className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-            Votos por partido
-          </p>
-          <div className="space-y-0.5">
-            {top3.map((p) => (
-              <div key={p.siglas} className="flex items-center gap-2 text-xs">
-                <span
-                  className="h-2 w-2 shrink-0 rounded-full"
-                  style={{ backgroundColor: colorDe(p.siglas) }}
-                />
-                <span className="flex-1 truncate text-muted-foreground">{p.nombre}</span>
-                <span className="tabular-nums">{fmt(p.votos)}</span>
+      {/* Resumen de participación de la sección en ese proceso. */}
+      <div className="mt-2 grid grid-cols-3 gap-1.5 rounded-md bg-background px-2 py-1.5 text-center">
+        <Dato etiqueta="Votos" valor={fmt(proceso.totalVotos)} />
+        <Dato etiqueta="Lista nominal" valor={fmt(proceso.listaNominal)} />
+        <Dato
+          etiqueta="Participación"
+          valor={proceso.participacion !== null ? `${proceso.participacion}%` : "—"}
+        />
+      </div>
+
+      {proceso.partidos.length > 0 && (
+        <div className="mt-2">
+          <button
+            type="button"
+            onClick={() => setAbierto((v) => !v)}
+            className="flex w-full items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground"
+          >
+            {abierto ? (
+              <ChevronDown className="h-3 w-3" />
+            ) : (
+              <ChevronRight className="h-3 w-3" />
+            )}
+            Votos por partido ({proceso.partidos.length})
+          </button>
+
+          {abierto && (
+            <div className="mt-1.5 space-y-0.5 rounded-md bg-muted/40 px-2 py-1.5">
+              {proceso.partidos.map((p) => (
+                <div key={p.siglas} className="flex items-center gap-2 text-xs">
+                  <span
+                    className="h-2 w-2 shrink-0 rounded-full"
+                    style={{ backgroundColor: colorDe(p.siglas) }}
+                  />
+                  <span className="flex-1 truncate text-muted-foreground">{p.nombre}</span>
+                  <span className="tabular-nums">{fmt(p.votos)}</span>
+                  <span className="w-12 text-right tabular-nums text-muted-foreground">
+                    {p.porcentaje}%
+                  </span>
+                </div>
+              ))}
+
+              {proceso.coaliciones.length > 0 && (
+                <div className="mt-1 border-t border-border/60 pt-1">
+                  <p className="mb-0.5 text-[10px] text-muted-foreground">
+                    Voto conjunto de coalición
+                  </p>
+                  {proceso.coaliciones.map((c) => (
+                    <div key={c.siglas} className="flex items-center gap-2 text-xs">
+                      <span className="h-2 w-2 shrink-0 rounded-full bg-muted-foreground/40" />
+                      <span className="flex-1 truncate text-muted-foreground">{c.siglas}</span>
+                      <span className="tabular-nums">{fmt(c.votos)}</span>
+                      <span className="w-12 text-right tabular-nums text-muted-foreground">
+                        {c.porcentaje}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-1 flex items-center gap-2 border-t border-border/60 pt-1 text-xs">
+                <span className="h-2 w-2 shrink-0 rounded-full bg-muted-foreground/25" />
+                <span className="flex-1 text-muted-foreground">Nulos</span>
+                <span className="tabular-nums">{fmt(proceso.votosNulos)}</span>
                 <span className="w-12 text-right tabular-nums text-muted-foreground">
-                  {p.porcentaje}%
+                  {proceso.totalVotos
+                    ? Math.round((proceso.votosNulos / proceso.totalVotos) * 1000) / 10
+                    : 0}
+                  %
                 </span>
               </div>
-            ))}
-          </div>
-          {proceso.coaliciones.length > 0 && (
-            <p className="mt-1 text-[10px] text-muted-foreground">
-              + {fmt(proceso.coaliciones.reduce((a, c) => a + c.votos, 0))} votos marcando
-              varios partidos aliados a la vez
-            </p>
+
+              {votosCoalicion > 0 && (
+                <p className="pt-1 text-[10px] leading-snug text-muted-foreground">
+                  El voto conjunto no pertenece a ningún partido en solitario: se emite
+                  marcando varios aliados a la vez en la misma boleta.
+                </p>
+              )}
+            </div>
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function Dato({ etiqueta, valor }: { etiqueta: string; valor: string }) {
+  return (
+    <div>
+      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{etiqueta}</p>
+      <p className="text-xs font-medium tabular-nums">{valor}</p>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
+import { CandidateForm } from "@/components/candidate-form";
 
 export const Route = createFileRoute("/_authenticated/configuracion")({
   head: () => ({
@@ -30,6 +31,7 @@ function ConfiguracionPage() {
     <>
       <PageHeader title="Configuración" description="Perfil, permisos y políticas de datos." />
       <div className="grid gap-4 lg:grid-cols-2">
+        <CandidateForm />
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Cuenta</CardTitle>
