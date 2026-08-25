@@ -15,10 +15,16 @@ import {
 } from "@/components/ui/select";
 import { monitoringService } from "@/services/monitoringService";
 
+/**
+ * Solo persona pública y tema.
+ *
+ * Organización y marca sobraban en una plataforma de análisis territorial: el
+ * monitoreo aquí sirve para seguir a figuras públicas y asuntos de agenda, y
+ * ofrecer categorías que nadie usa obliga a decidir en cada búsqueda sin que la
+ * elección cambie nada.
+ */
 const SUBJECT_TYPES = [
   { value: "person", label: "Persona pública" },
-  { value: "organization", label: "Organización" },
-  { value: "brand", label: "Marca" },
   { value: "topic", label: "Tema" },
 ];
 

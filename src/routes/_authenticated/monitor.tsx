@@ -26,6 +26,7 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
 import { MonitorSearch } from "@/components/monitor-search";
+import { ReputationPlan } from "@/components/reputation-plan";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -138,6 +139,21 @@ function MonitorPage() {
               <span className="ml-2 opacity-60">{m.mention_count}</span>
             </Button>
           ))}
+        </div>
+      )}
+
+      {/* El plan va antes de las cifras: cuando hay crisis, lo primero que se
+          busca es qué hacer, no cuántas menciones hay. */}
+      {rows.length > 0 && (
+        <div className="mb-4">
+          <ReputationPlan
+            analytics={a}
+            mentions={rows}
+            sujeto={monitorName ?? "el sujeto monitoreado"}
+            tipoSujeto={
+              monitors.data?.find((m) => m.id === activeMonitor)?.subject_type ?? "topic"
+            }
+          />
         </div>
       )}
 
