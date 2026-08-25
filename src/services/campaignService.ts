@@ -12,7 +12,40 @@ export type CandidateInput = {
   fecha_eleccion?: string | null;
 };
 
+/** Formatos y tamaño que acepta el bucket. Se validan aquí para dar un mensaje
+ *  claro en vez del error genérico que devuelve el almacenamiento. */
+export const FOTO_TIPOS = ["image/jpeg", "image/png", "image/webp", "image/avif"];
+export const FOTO_MAX_BYTES = 5 * 1024 * 1024;
+
 export const campaignService = {
+  /**
+   * Sube la fotografía de la candidatura y devuelve su URL pública.
+   *
+   * Se guarda siempre en la misma ruta por organización y se sobrescribe. Así no
+   * se acumulan archivos huérfanos cada vez que se cambia la foto, y no hace
+   * falta borrar nada. Como la ruta no cambia, la URL se devuelve con una marca
+   * de tiempo para que el navegador no siga mostrando la imagen anterior.
+   */
+  async uploadPhoto(orgId: string, file: File): Promise<string> {
+    if (!FOTO_TIPOS.includes(file.type)) {
+      throw new Error("Formato no admitido. Usa JPG, PNG, WEBP o AVIF.");
+    }
+    if (file.size > FOTO_MAX_BYTES) {
+      throw new Error(
+        `La imagen pesa ${(file.size / 1048576).toFixed(1)} MB y el máximo son 5 MB.`,
+      );
+    }
+
+    const ruta = `${orgId}/foto`;
+    const { error } = await supabase.storage
+      .from("candidatos")
+      .upload(ruta, file, { upsert: true, contentType: file.type, cacheControl: "3600" });
+    if (error) throw error;
+
+    const { data } = supabase.storage.from("candidatos").getPublicUrl(ruta);
+    return `${data.publicUrl}?v=${Date.now()}`;
+  },
+
   /** Ficha de la candidatura. `null` mientras nadie la haya capturado. */
   async getCandidate(): Promise<Candidate | null> {
     const { data, error } = await supabase.from("candidates").select("*").maybeSingle();
