@@ -5,6 +5,7 @@ import {
   Layers,
   Users,
   BarChart3,
+  Crosshair,
   Radar,
   MessageSquareQuote,
   FileText,
@@ -31,6 +32,7 @@ const territorio = [
   { title: "Secciones", url: "/secciones", icon: Layers },
   { title: "Contactos", url: "/contactos", icon: Users },
   { title: "Analytics", url: "/analytics", icon: BarChart3 },
+  { title: "Análisis estratégico", url: "/analisis-estrategico", icon: Crosshair },
 ];
 
 const monitoreo = [
