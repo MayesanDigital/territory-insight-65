@@ -1,12 +1,15 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Target, TrendingDown, TrendingUp } from "lucide-react";
+import { AlertTriangle, Download, Printer, Target, TrendingDown, TrendingUp } from "lucide-react";
+import { toast } from "sonner";
 
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, ErrorState } from "@/components/query-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { exportCSV, exportPrintablePDF, stamped } from "@/lib/export";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -21,6 +24,7 @@ import {
   normalizaMunicipio,
   PARTIDOS,
   strategyService,
+  type AnalisisEstrategico,
   type Clasificacion,
   type SeccionAnalizada,
 } from "@/services/strategyService";
@@ -121,9 +125,17 @@ function AnalisisPage() {
           </Select>
 
           {analisis.data && (
-            <Badge variant="secondary" className="ml-auto">
-              {analisis.data.procesos.map((p) => p.año).join(" · ")}
-            </Badge>
+            <>
+              <Badge variant="secondary" className="ml-auto">
+                {analisis.data.procesos.map((p) => p.año).join(" · ")}
+              </Badge>
+              <Button variant="outline" size="sm" onClick={() => imprimir(analisis.data!, nombrePartido)}>
+                <Printer className="mr-2 h-4 w-4" /> Imprimir / PDF
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => descargar(analisis.data!, nombrePartido)}>
+                <Download className="mr-2 h-4 w-4" /> CSV
+              </Button>
+            </>
           )}
         </CardHeader>
       </Card>
@@ -152,6 +164,7 @@ function AnalisisPage() {
         <div className="space-y-4">
           <Encabezado datos={analisis.data} nombrePartido={nombrePartido} />
           <ResumenEjecutivo grupos={grupos} total={analisis.data.secciones.length} />
+          <NotaMetodologica datos={analisis.data} nombrePartido={nombrePartido} />
           {ORDEN.filter((c) => (grupos.get(c) ?? []).length > 0).map((c) => (
             <TablaGrupo
               key={c}
@@ -373,6 +386,7 @@ function TablaGrupo({
                 ))}
                 <th className="px-4 py-2 text-right">Tendencia</th>
                 <th className="px-4 py-2">Rival</th>
+                <th className="px-4 py-2">Observación</th>
               </tr>
             </thead>
             <tbody>
@@ -423,6 +437,9 @@ function TablaGrupo({
                   <td className="px-4 py-2 text-xs" translate="no">
                     {s.rival ?? <span className="text-muted-foreground">—</span>}
                   </td>
+                  <td className="max-w-[320px] px-4 py-2 text-xs text-muted-foreground">
+                    {s.observacion}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -431,4 +448,161 @@ function TablaGrupo({
       </CardContent>
     </Card>
   );
+}
+
+/**
+ * Nota metodológica.
+ *
+ * Un informe que clasifica territorio y sugiere dónde invertir esfuerzo tiene
+ * que decir de dónde salen sus cifras y qué NO puede afirmar. Sin esto, el
+ * lector no sabe si "siempre gana" son dos elecciones o diez.
+ */
+function NotaMetodologica({
+  datos,
+  nombrePartido,
+}: {
+  datos: AnalisisEstrategico;
+  nombrePartido: string;
+}) {
+  const años = datos.procesos.map((p) => p.año);
+  const sinHistorial = datos.secciones.filter((s) => s.clasificacion === "sin_historial").length;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Nota metodológica</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2 text-xs text-muted-foreground">
+        <p>
+          · Se comparan las elecciones de <strong>ayuntamiento</strong> de {años.join(" y ")},
+          con cómputos oficiales del IEEZ. Para una campaña municipal, ganar la sección en
+          la elección del propio cargo pesa más que ganarla en una federal.
+        </p>
+        <p>
+          · Los votos de {nombrePartido} incluyen <strong>toda la coalición que lo llevaba en
+          ese municipio</strong>. Las alianzas se pactan ayuntamiento por ayuntamiento: donde
+          compitió solo, la cifra es la suya; donde fue coaligado, es la del bloque. Sumar
+          únicamente su columna perdería los votos emitidos marcando a varios aliados a la vez.
+        </p>
+        <p>
+          · <strong>Ganó</strong> significa haber sido la fuerza más votada en esa sección, no
+          haber ganado el municipio.
+        </p>
+        {sinHistorial > 0 && (
+          <p>
+            · {sinHistorial}{" "}
+            {sinHistorial === 1 ? "sección carece" : "secciones carecen"} de dato en alguno de
+            los procesos. Suele deberse al <strong>reseccionamiento</strong>: entre 2021 y 2024
+            el INE dividió y renumeró secciones, así que no todas tienen historial comparable.
+            Se marcan como tales en lugar de estimarles cifras que no existen.
+          </p>
+        )}
+        <p>
+          · La <strong>tendencia</strong> es la diferencia en puntos porcentuales entre el
+          primer y el último proceso. El <strong>margen</strong> compara contra la fuerza
+          ganadora de la última elección: negativo significa derrota.
+        </p>
+        <p className="pt-1 italic">
+          Documento de trabajo interno. Las cifras son públicas y agregadas por sección; no
+          describen a ninguna persona.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Filas planas para exportar, una por sección. */
+function filasPlanas(datos: AnalisisEstrategico) {
+  return datos.secciones.map((s) => {
+    const fila: Record<string, string | number> = {
+      Seccion: s.seccion,
+      "Colonia / comunidad": s.colonia,
+      Tipo: s.tipo ?? "",
+      "Lista nominal": s.listaNominal,
+      Clasificacion: CLASIFICACION[s.clasificacion].titulo,
+      Prioridad: CLASIFICACION[s.clasificacion].prioridad,
+    };
+    for (const p of datos.procesos) {
+      const r = s.procesos.find((x) => x.año === p.año);
+      fila[`Votos ${p.año}`] = r?.votos ?? "";
+      fila[`% ${p.año}`] = r?.porcentaje ?? "";
+      fila[`Gano ${p.año}`] = r ? (r.gano ? "Si" : "No") : "";
+    }
+    fila["Tendencia (pts)"] = s.tendencia ?? "";
+    fila["Margen (pts)"] = s.margen ?? "";
+    fila["Rival ultima"] = s.rival ?? "";
+    fila.Observacion = s.observacion;
+    return fila;
+  });
+}
+
+function descargar(datos: AnalisisEstrategico, nombrePartido: string) {
+  exportCSV(
+    stamped(`analisis-${nombrePartido}-${datos.municipio}`.replace(/\s+/g, "-").toLowerCase()),
+    filasPlanas(datos),
+  );
+}
+
+function imprimir(datos: AnalisisEstrategico, nombrePartido: string) {
+  const t = datos.totales;
+  const ultimo = datos.procesos[datos.procesos.length - 1];
+  const cuenta = (c: Clasificacion) =>
+    datos.secciones.filter((s) => s.clasificacion === c).length;
+
+  const resumen = [
+    `El análisis cubre ${t.secciones} secciones del municipio de ${datos.municipio}, con ` +
+      `${t.listaNominal.toLocaleString("es-MX")} electores en lista nominal. En ` +
+      `${ultimo?.etiqueta ?? "la última elección"} se emitieron ` +
+      `${t.votosEmitidos.toLocaleString("es-MX")} votos (participación ${t.participacion}%), ` +
+      `de los cuales ${nombrePartido} obtuvo ${t.votosPartido.toLocaleString("es-MX")}, ` +
+      `el ${t.porcentajePartido}%.`,
+    `${cuenta("siempre_gana")} secciones son base sólida y ${cuenta("perdida")} se perdieron ` +
+      `tras haberse ganado: estas últimas son la prioridad, porque el voto ya estuvo ahí y ` +
+      `recuperarlo cuesta menos que conquistar territorio nuevo.`,
+  ];
+
+  if (datos.tendenciaMedia !== null) {
+    resumen.push(
+      `La tendencia media entre ${datos.procesos[0]?.año} y ${ultimo?.año} es de ` +
+        `${datos.tendenciaMedia > 0 ? "+" : ""}${datos.tendenciaMedia} puntos porcentuales. ` +
+        (datos.tendenciaMedia < 0
+          ? "Ganar una sección hoy no garantiza ganarla mañana si no se trabaja la estructura."
+          : "El avance sostenido facilita consolidar lo ganado."),
+    );
+  }
+
+  resumen.push(
+    `Los votos incluyen la coalición que llevaba a ${nombrePartido} en este municipio. ` +
+      `"Ganó" significa haber sido la fuerza más votada en la sección, no haber ganado el ` +
+      `municipio. Documento de trabajo interno con cifras públicas agregadas por sección.`,
+  );
+
+  try {
+    exportPrintablePDF(
+      {
+        title: "Análisis electoral estratégico",
+        subtitle: `${nombrePartido} · Municipio de ${datos.municipio} · Elecciones ${datos.procesos
+          .map((p) => p.año)
+          .join(" y ")}`,
+        kpis: [
+          { label: "Secciones", value: t.secciones.toLocaleString("es-MX") },
+          { label: "Lista nominal", value: t.listaNominal.toLocaleString("es-MX") },
+          { label: `Votos emitidos ${ultimo?.año ?? ""}`, value: t.votosEmitidos.toLocaleString("es-MX") },
+          { label: `Votos ${nombrePartido}`, value: t.votosPartido.toLocaleString("es-MX") },
+          { label: "% sobre emitidos", value: `${t.porcentajePartido}%` },
+        ],
+        summary: resumen,
+      },
+      ORDEN.filter((c) => cuenta(c) > 0).map((c) => ({
+        heading: `${CLASIFICACION[c].titulo} — ${cuenta(c)} ${cuenta(c) === 1 ? "sección" : "secciones"}`,
+        description: CLASIFICACION[c].accion,
+        rows: filasPlanas({
+          ...datos,
+          secciones: datos.secciones.filter((s) => s.clasificacion === c),
+        }),
+      })),
+    );
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : "No se pudo abrir la vista de impresión");
+  }
 }

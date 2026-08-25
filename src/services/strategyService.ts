@@ -109,6 +109,8 @@ export interface SeccionAnalizada {
   rival: string | null;
   /** Margen contra el ganador en el último proceso. Negativo si se perdió. */
   margen: number | null;
+  /** Lectura en una frase de lo que ocurre en esta sección. */
+  observacion: string;
 }
 
 export interface AnalisisEstrategico {
@@ -158,6 +160,54 @@ function clasifica(procesos: ResultadoProceso[], totalProcesos: number): Clasifi
   // exige una respuesta distinta a ganar lo que no se tenía.
   const ultimo = procesos[procesos.length - 1];
   return ultimo.gano ? "conquistada" : "perdida";
+}
+
+/**
+ * Traduce las cifras a una instrucción accionable.
+ *
+ * Un número suelto no dice qué hacer. Perder por dos puntos y perder por treinta
+ * exigen decisiones opuestas, y una sección que gana mientras se desangra merece
+ * más atención que una que gana estable.
+ */
+function observacionDe(
+  clasificacion: Clasificacion,
+  tendencia: number | null,
+  margen: number | null,
+  listaNominal: number,
+): string {
+  const caida = tendencia !== null && tendencia < 0 ? Math.abs(tendencia) : 0;
+  const peso = listaNominal >= 2000 ? "Sección de alto padrón: " : "";
+
+  switch (clasificacion) {
+    case "perdida": {
+      if (margen !== null && margen > -3) {
+        return `${peso}Se perdió por apenas ${Math.abs(margen).toFixed(1)} puntos. Recuperable con estructura y movilización.`;
+      }
+      if (margen !== null && margen > -10) {
+        return `${peso}Derrota ajustada de ${Math.abs(margen).toFixed(1)} puntos. Diagnóstico de causa y trabajo de campo.`;
+      }
+      return `${peso}Derrota amplia. Identificar qué cambió antes de invertir esfuerzo.`;
+    }
+    case "siempre_gana": {
+      if (caida >= 8) {
+        return `${peso}Gana, pero cae ${caida.toFixed(1)} puntos. Desgaste serio: atender antes de que se voltee.`;
+      }
+      if (caida > 0) {
+        return `${peso}Se conserva con una caída de ${caida.toFixed(1)} puntos. Vigilar.`;
+      }
+      return `${peso}Bastión estable. Aprovechar para formar comités y replicar el método.`;
+    }
+    case "conquistada":
+      return `${peso}Terreno ganado en la última elección. Consolidar ahora, que es cuando se pierde.`;
+    case "siempre_pierde": {
+      if (margen !== null && margen > -10) {
+        return `${peso}Nunca se ha ganado, pero está a ${Math.abs(margen).toFixed(1)} puntos. Disputable.`;
+      }
+      return `${peso}Territorio adverso de forma sostenida. Baja prioridad de inversión.`;
+    }
+    default:
+      return `${peso}Sin historial comparable. Requiere diagnóstico de campo para saber qué hay.`;
+  }
 }
 
 export const strategyService = {
@@ -271,20 +321,29 @@ export const strategyService = {
         votosPartido += ultimo.votos;
       }
 
+      const tendencia =
+        procesos.length >= 2
+          ? Math.round((ultimo.porcentaje - primero.porcentaje) * 10) / 10
+          : null;
+      const ganadorPct = fuerzaGanadora(propias);
+      const margen =
+        ultimo && ganadorPct !== null
+          ? Math.round((ultimo.porcentaje - ganadorPct) * 10) / 10
+          : null;
+      const clasificacion = clasifica(procesos, procesosDisponibles.length);
+
       secciones.push({
         seccion: clave,
         colonia: unidad.localidad || unidad.municipio,
         tipo: unidad.section_type,
         listaNominal: ultimo?.listaNominal ?? 0,
         poblacion: unidad.population,
-        clasificacion: clasifica(procesos, procesosDisponibles.length),
+        clasificacion,
         procesos,
-        tendencia:
-          procesos.length >= 2 ? Math.round((ultimo.porcentaje - primero.porcentaje) * 10) / 10 : null,
+        tendencia,
         rival: ultimo && !ultimo.gano ? ultimo.ganador : null,
-        margen: ultimo
-          ? Math.round((ultimo.porcentaje - ((fuerzaGanadora(propias) ?? ultimo.porcentaje))) * 10) / 10
-          : null,
+        margen,
+        observacion: observacionDe(clasificacion, tendencia, margen, ultimo?.listaNominal ?? 0),
       });
     }
 
