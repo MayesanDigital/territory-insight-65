@@ -23,6 +23,10 @@ data/
 # Estado local de la CLI de Supabase (ref enlazada, versiones detectadas).
 supabase/.temp/
 
+# Respaldos de la base. Contienen datos personales de contactos y perfiles, así
+# que no pueden versionarse ni acabar en un repositorio, público o privado.
+respaldos/
+
 # Environment — nunca versionar secretos. Usa .env.example como plantilla.
 .env
 .env.*
