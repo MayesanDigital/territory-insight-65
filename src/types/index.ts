@@ -126,11 +126,13 @@ export function toTerritorialUnitDetailed(row: UnitDetailedRow): TerritorialUnit
 /**
  * Etiqueta de censo que se muestra en la interfaz.
  *
- * Es un rótulo de presentación definido por el operador y se cambia solo aquí.
- * La procedencia real de cada dato sigue guardada en `demographics.source` y
- * `demographics.year`, que es lo que deben leer reportes y auditoría.
+ * Debe coincidir con `demographics.source` y `demographics.year`, que hoy son
+ * `ine-eceg-2020` y 2020 para las 1,777 secciones con datos censales. Rotularlo
+ * con otro año hacía que la población pareciera contemporánea de la lista
+ * nominal de 2024 y que su diferencia se leyera como un error de captura, cuando
+ * es la brecha real entre un censo y un padrón electoral cuatro años posterior.
  */
-export const CENSUS_DISPLAY_LABEL = "Censo 2025";
+export const CENSUS_DISPLAY_LABEL = "Censo INE-ECEG 2020";
 
 export const GENDER_LABELS: Record<string, string> = {
   femenino: "Femenino",

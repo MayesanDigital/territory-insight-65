@@ -76,6 +76,7 @@ function SeccionesPage() {
           municipio: u.municipio,
           listaNominal: listaNominal.data?.[u.section_code] ?? 0,
           poblacion: u.population ?? 0,
+          sinCenso: !u.has_demographics,
           hogares: u.households ?? 0,
           contactos: counts[u.section_code] ?? 0,
           cobertura: u.population
@@ -128,14 +129,22 @@ function SeccionesPage() {
               }
             />
           ) : (
+            <>
+            <p className="mb-2 text-xs text-muted-foreground">
+              La <strong>lista nominal</strong> es el padrón electoral de 2024; la{" "}
+              <strong>población</strong> es el censo del INE-ECEG de 2020 e incluye menores.
+              Puede superar a la población en secciones con emigración alta: quien se va
+              conserva su credencial pero deja de contar como residente. Un guion indica que la
+              sección no tiene datos censales.
+            </p>
             <div className="max-h-[600px] overflow-auto rounded-md border border-border">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Sección</TableHead>
                     <TableHead>Municipio</TableHead>
-                    <TableHead className="text-right">Lista nominal</TableHead>
-                    <TableHead className="text-right">Población</TableHead>
+                    <TableHead className="text-right">Lista nominal 2024</TableHead>
+                    <TableHead className="text-right">Población 2020</TableHead>
                     <TableHead className="text-right">Hogares</TableHead>
                     <TableHead className="text-right">Contactos</TableHead>
                     <TableHead className="text-right">Cobertura</TableHead>
@@ -152,7 +161,13 @@ function SeccionesPage() {
                           : <span className="text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {r.poblacion.toLocaleString("es-MX")}
+                        {r.sinCenso ? (
+                          <span className="text-muted-foreground" title="Sección sin datos censales">
+                            —
+                          </span>
+                        ) : (
+                          r.poblacion.toLocaleString("es-MX")
+                        )}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {r.hogares.toLocaleString("es-MX")}
@@ -164,6 +179,7 @@ function SeccionesPage() {
                 </TableBody>
               </Table>
             </div>
+            </>
           )}
         </CardContent>
       </Card>
