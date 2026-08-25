@@ -23,6 +23,8 @@ import { SectionElectionComparison } from "@/components/section-election-compari
 import { SectionContactBreakdown } from "@/components/section-contact-breakdown";
 import { territoryService } from "@/services/territoryService";
 import { contactsService } from "@/services/contactsService";
+import { electionsService } from "@/services/electionsService";
+import { campaignService } from "@/services/campaignService";
 import { useAuth } from "@/hooks/useAuth";
 import { CENSUS_DISPLAY_LABEL, type TerritorialUnit, type TerritorialUnitDetailed } from "@/types";
 import type { MapMetric, SectionContacts } from "@/components/territory-map";
@@ -106,6 +108,20 @@ function MapaPage() {
     }
     return map;
   }, [contacts.data]);
+
+  // Ganador de la última municipal y metas fijadas: alimentan el popup para que
+  // muestre lo mismo que la ficha lateral. Se piden una vez para todo el mapa;
+  // pedirlos por sección al abrir cada popup sería un viaje de red por clic.
+  const winners = useQuery({
+    queryKey: ["ganadores", 2024, "ayuntamiento"],
+    queryFn: () => electionsService.ganadores(2024, "ayuntamiento"),
+    staleTime: 30 * 60 * 1000,
+  });
+
+  const goals = useQuery({
+    queryKey: ["metas"],
+    queryFn: () => campaignService.listGoals(),
+  });
 
   const municipios = useMemo(
     () => Array.from(new Set((units.data ?? []).map((u) => u.municipio))).sort(),
@@ -205,6 +221,8 @@ function MapaPage() {
                     units={filtered}
                     geometryById={geometryById}
                     contactCounts={counts}
+                    winners={winners.data ?? {}}
+                    goals={goals.data ?? {}}
                     metric={metric}
                     selectedId={selected?.id ?? null}
                     onSelect={setSelected}

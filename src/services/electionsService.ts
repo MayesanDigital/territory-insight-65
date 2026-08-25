@@ -43,6 +43,14 @@ export interface ResultadoSeccion {
   fuente: string;
 }
 
+/** Resumen del resultado de una sección, para el popup del mapa. */
+export interface GanadorSeccion {
+  ganador: string | null;
+  participacion: number | null;
+  totalVotos: number;
+  etiqueta: string;
+}
+
 type PartidosJson = { partidos?: VotoPartido[]; coaliciones?: VotoCoalicion[] };
 
 function aResultado(row: SectionElectionRow): ResultadoSeccion {
@@ -79,20 +87,44 @@ export const electionsService = {
   },
 
   /**
-   * Fuerza ganadora por sección, para pintar el mapa. Solo trae las columnas
-   * necesarias: con ~1,800 secciones por proceso, seleccionar los jsonb completos
-   * serían varios MB por carga del mapa.
+   * Ganador por sección para una elección concreta, con destino al popup del
+   * mapa. Solo trae las columnas necesarias: con ~1,800 secciones, seleccionar
+   * los jsonb completos serían varios MB por carga.
+   *
+   * Se pagina a mano porque PostgREST corta en 1,000 filas por defecto y el
+   * estado tiene más secciones que eso: sin esto, faltaría el ganador en un
+   * tercio del mapa sin ningún aviso.
    */
-  async ganadores(year: number): Promise<Record<string, string | null>> {
-    const { data, error } = await supabase
-      .from("section_election_results")
-      .select("section_code, ganador")
-      .eq("election_year", year);
+  async ganadores(
+    year: number,
+    electionType: string,
+  ): Promise<Record<string, GanadorSeccion>> {
+    const PAGINA = 1000;
+    const mapa: Record<string, GanadorSeccion> = {};
 
-    if (error) throw error;
+    for (let desde = 0; ; desde += PAGINA) {
+      const { data, error } = await supabase
+        .from("section_election_results")
+        .select("section_code, ganador, participacion, total_votos, election_label")
+        .eq("election_year", year)
+        .eq("election_type", electionType)
+        .order("section_code")
+        .range(desde, desde + PAGINA - 1);
 
-    const mapa: Record<string, string | null> = {};
-    for (const row of data ?? []) mapa[row.section_code] = row.ganador;
+      if (error) throw error;
+      if (!data?.length) break;
+
+      for (const row of data) {
+        mapa[row.section_code] = {
+          ganador: row.ganador,
+          participacion: row.participacion,
+          totalVotos: row.total_votos,
+          etiqueta: row.election_label,
+        };
+      }
+      if (data.length < PAGINA) break;
+    }
+
     return mapa;
   },
 };

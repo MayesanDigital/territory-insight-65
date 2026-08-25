@@ -4,6 +4,7 @@ import "leaflet/dist/leaflet.css";
 
 import type { Json } from "@/integrations/supabase/types";
 import { CENSUS_DISPLAY_LABEL, type TerritorialUnit } from "@/types";
+import type { GanadorSeccion } from "@/services/electionsService";
 
 export type MapMetric = "population" | "contacts" | "coverage" | "density";
 
@@ -29,6 +30,10 @@ interface Props {
    */
   geometryById: Record<string, Json>;
   contactCounts: Record<string, SectionContacts>;
+  /** Ganador de la última elección municipal, por clave de sección. */
+  winners?: Record<string, GanadorSeccion>;
+  /** Meta de contactos fijada por la campaña, por clave de sección. */
+  goals?: Record<string, number>;
   metric: MapMetric;
   selectedId?: string | null;
   onSelect: (unit: TerritorialUnit) => void;
@@ -83,9 +88,11 @@ function buildPopup(
   contacts: SectionContacts,
   onAdd: ((unit: TerritorialUnit) => void) | undefined,
   canAdd: boolean,
+  winner?: GanadorSeccion,
+  goal?: number,
 ): HTMLElement {
   const el = document.createElement("div");
-  el.innerHTML = popupHtml(u, contacts);
+  el.innerHTML = popupHtml(u, contacts, winner, goal);
 
   if (onAdd && canAdd) {
     const button = document.createElement("button");
@@ -114,7 +121,12 @@ function buildPopup(
   return el;
 }
 
-function popupHtml(u: TerritorialUnit, contacts: SectionContacts) {
+function popupHtml(
+  u: TerritorialUnit,
+  contacts: SectionContacts,
+  winner?: GanadorSeccion,
+  goal?: number,
+) {
   const total = u.population ?? 0;
   const cobertura = total > 0 ? ((contacts.total / total) * 100).toFixed(2) : "0.00";
   const sinCategoria = contacts.total - contacts.fidelizado - contacts.seguro;
@@ -137,6 +149,52 @@ function popupHtml(u: TerritorialUnit, contacts: SectionContacts) {
     : `<p style="margin:8px 0 0;font-size:11px;color:#9B4A4A">
          Sin datos censales: sección creada tras el censo.
        </p>`;
+
+  // Avance sobre la meta. Sin meta fijada el bloque no se dibuja: una barra al
+  // 0 % sugiere retraso cuando lo que ocurre es que nadie fijó objetivo.
+  const metaHtml =
+    goal && goal > 0
+      ? (() => {
+          const avance = Math.round((contacts.total / goal) * 1000) / 10;
+          const segmento = (v: number, color: string) =>
+            v > 0
+              ? `<span style="display:block;height:100%;width:${Math.min((v / goal) * 100, 100)}%;background:${color};float:left"></span>`
+              : "";
+          return `
+      <div style="margin-top:6px;padding:6px 8px;border-radius:6px;background:#F6F1E7">
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px">
+          <span style="opacity:.7">Meta ${fmt(goal)} contactos</span>
+          <b style="${avance >= 100 ? "color:#2F6B4F" : ""}">${avance}%</b>
+        </div>
+        <span style="display:block;height:7px;background:#E4DCCD;border-radius:4px;overflow:hidden">
+          ${segmento(contacts.fidelizado, "#7A4E23")}
+          ${segmento(contacts.seguro, "#4A5D6B")}
+          ${segmento(sinCategoria, "#B9AFA0")}
+        </span>
+        <div style="font-size:10px;opacity:.65;margin-top:3px">
+          Faltan ${fmt(Math.max(0, goal - contacts.total))} para la meta
+        </div>
+      </div>`;
+        })()
+      : "";
+
+  // Resultado de la última elección municipal. Es el contexto político que
+  // explica la sección; sin él, el popup solo describe demografía.
+  const eleccionHtml = winner?.ganador
+    ? `
+      <div style="margin-top:6px;padding:6px 8px;border-radius:6px;border:1px solid #E4DCCD">
+        <p style="margin:0 0 3px;font-size:10px;letter-spacing:.09em;text-transform:uppercase;opacity:.6">
+          ${winner.etiqueta}
+        </p>
+        <div style="display:flex;justify-content:space-between;font-size:12px">
+          <b>${winner.ganador}</b>
+          <span style="opacity:.7">${winner.participacion !== null ? `${winner.participacion}% part.` : ""}</span>
+        </div>
+        <div style="font-size:10px;opacity:.6;margin-top:2px">
+          ${fmt(winner.totalVotos)} votos emitidos
+        </div>
+      </div>`
+    : "";
 
   return `
     <div style="font-family:Manrope,system-ui,sans-serif;min-width:250px;color:#1C1A17">
@@ -179,6 +237,8 @@ function popupHtml(u: TerritorialUnit, contacts: SectionContacts) {
             : ""
         }
       </div>
+      ${metaHtml}
+      ${eleccionHtml}
       ${demografia}
       <p style="margin:8px 0 0;font-size:10px;opacity:.55">${CENSUS_DISPLAY_LABEL}</p>
     </div>`;
@@ -188,6 +248,8 @@ export default function TerritoryMap({
   units,
   geometryById,
   contactCounts,
+  winners = {},
+  goals = {},
   metric,
   selectedId,
   onSelect,
@@ -274,7 +336,8 @@ export default function TerritoryMap({
       const value = values[i] ?? 0;
       const idx = Math.min(SCALE.length - 1, Math.floor((value / max) * SCALE.length));
       const color = SCALE[idx] ?? SCALE[0]!;
-      const content = () => buildPopup(u, contacts, onAddRef.current, canAddContact);
+      const content = () =>
+        buildPopup(u, contacts, onAddRef.current, canAddContact, winners[u.section_code], goals[u.section_code]);
 
       const track = (l: L.Layer) => {
         l.on("popupopen", () => {
@@ -329,7 +392,7 @@ export default function TerritoryMap({
       const owner = popupOwnersRef.current.get(reopen);
       if (owner) owner.openPopup();
     }
-  }, [units, geometryById, contactCounts, metric, max, values, fitKey, canAddContact]);
+  }, [units, geometryById, contactCounts, winners, goals, metric, max, values, fitKey, canAddContact]);
 
   // --- Resaltar. Solo cambia el estilo; nunca redibuja ni mueve la vista. ---
   useEffect(() => {
