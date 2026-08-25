@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/table";
 import { territoryService } from "@/services/territoryService";
 import { contactsService } from "@/services/contactsService";
+import { electionsService } from "@/services/electionsService";
 import { exportCSV } from "@/lib/export";
 
 export const Route = createFileRoute("/_authenticated/secciones")({
@@ -45,6 +46,14 @@ function SeccionesPage() {
   const units = useQuery({ queryKey: ["units"], queryFn: () => territoryService.list() });
   const contacts = useQuery({ queryKey: ["contacts", {}], queryFn: () => contactsService.list() });
 
+  // La lista nominal no está en el catálogo territorial: llega con cada cómputo
+  // electoral, así que se toma del proceso más reciente.
+  const listaNominal = useQuery({
+    queryKey: ["lista-nominal", 2024],
+    queryFn: () => electionsService.listaNominal(2024),
+    staleTime: 30 * 60 * 1000,
+  });
+
   const counts = useMemo(() => {
     const map: Record<string, number> = {};
     for (const c of contacts.data ?? []) {
@@ -65,7 +74,7 @@ function SeccionesPage() {
         .map((u) => ({
           seccion: u.section_code,
           municipio: u.municipio,
-          localidad: u.localidad ?? "",
+          listaNominal: listaNominal.data?.[u.section_code] ?? 0,
           poblacion: u.population ?? 0,
           hogares: u.households ?? 0,
           contactos: counts[u.section_code] ?? 0,
@@ -73,7 +82,7 @@ function SeccionesPage() {
             ? (((counts[u.section_code] ?? 0) / u.population) * 100).toFixed(2)
             : "0.00",
         })),
-    [units.data, counts, search],
+    [units.data, counts, listaNominal.data, search],
   );
 
   return (
@@ -125,7 +134,7 @@ function SeccionesPage() {
                   <TableRow>
                     <TableHead>Sección</TableHead>
                     <TableHead>Municipio</TableHead>
-                    <TableHead>Localidad</TableHead>
+                    <TableHead className="text-right">Lista nominal</TableHead>
                     <TableHead className="text-right">Población</TableHead>
                     <TableHead className="text-right">Hogares</TableHead>
                     <TableHead className="text-right">Contactos</TableHead>
@@ -137,7 +146,11 @@ function SeccionesPage() {
                     <TableRow key={r.seccion}>
                       <TableCell className="font-medium">{r.seccion}</TableCell>
                       <TableCell>{r.municipio}</TableCell>
-                      <TableCell className="text-muted-foreground">{r.localidad}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {r.listaNominal
+                          ? r.listaNominal.toLocaleString("es-MX")
+                          : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {r.poblacion.toLocaleString("es-MX")}
                       </TableCell>

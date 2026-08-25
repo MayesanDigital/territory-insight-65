@@ -87,6 +87,40 @@ export const electionsService = {
   },
 
   /**
+   * Lista nominal por sección, del proceso más reciente disponible.
+   *
+   * El padrón no vive en el catálogo territorial: llega con cada cómputo, así
+   * que se toma del año más reciente. Cuando ese año tuvo varias elecciones se
+   * queda la cifra mayor, que es la del corte más tardío.
+   *
+   * Pagina por el mismo motivo que `ganadores`: PostgREST corta en 1,000 filas.
+   */
+  async listaNominal(year = 2024): Promise<Record<string, number>> {
+    const PAGINA = 1000;
+    const mapa: Record<string, number> = {};
+
+    for (let desde = 0; ; desde += PAGINA) {
+      const { data, error } = await supabase
+        .from("section_election_results")
+        .select("section_code, lista_nominal")
+        .eq("election_year", year)
+        .order("section_code")
+        .range(desde, desde + PAGINA - 1);
+
+      if (error) throw error;
+      if (!data?.length) break;
+
+      for (const row of data) {
+        const previo = mapa[row.section_code] ?? 0;
+        if (row.lista_nominal > previo) mapa[row.section_code] = row.lista_nominal;
+      }
+      if (data.length < PAGINA) break;
+    }
+
+    return mapa;
+  },
+
+  /**
    * Ganador por sección para una elección concreta, con destino al popup del
    * mapa. Solo trae las columnas necesarias: con ~1,800 secciones, seleccionar
    * los jsonb completos serían varios MB por carga.
