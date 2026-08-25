@@ -92,9 +92,10 @@ export function SectionElectionComparison({ sectionCode }: { sectionCode: string
 }
 
 function FilaEleccion({ proceso }: { proceso: ResultadoSeccion }) {
-  // Las elecciones más recientes se abren solas; el histórico queda plegado para
-  // que la ficha de la sección no obligue a desplazarse durante media pantalla.
-  const [abierto, setAbierto] = useState(proceso.año >= 2024);
+  // Todas las elecciones se abren de inicio. Plegar el histórico ahorraba
+  // desplazamiento, pero hacía parecer que 2021 no traía datos cuando es la que
+  // más partidos tiene. El botón sigue estando para cerrarlas a voluntad.
+  const [abierto, setAbierto] = useState(true);
 
   const ganador = proceso.bloques[0];
   if (!ganador) {
