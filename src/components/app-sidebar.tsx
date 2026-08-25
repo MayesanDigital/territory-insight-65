@@ -8,6 +8,7 @@ import {
   Crosshair,
   Radar,
   MessageSquareQuote,
+  GitCompare,
   FileText,
   Settings,
   Upload,
@@ -38,6 +39,7 @@ const territorio = [
 const monitoreo = [
   { title: "Monitor Público", url: "/monitor", icon: Radar },
   { title: "Menciones", url: "/menciones", icon: MessageSquareQuote },
+  { title: "Comparativo", url: "/comparativo", icon: GitCompare },
 ];
 
 const gestion = [

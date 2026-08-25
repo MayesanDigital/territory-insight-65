@@ -15,6 +15,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as AuthenticatedAnalisisEstrategicoRouteImport } from './routes/_authenticated/analisis-estrategico'
 import { Route as AuthenticatedAnalyticsRouteImport } from './routes/_authenticated/analytics'
+import { Route as AuthenticatedComparativoRouteImport } from './routes/_authenticated/comparativo'
 import { Route as AuthenticatedConfiguracionRouteImport } from './routes/_authenticated/configuracion'
 import { Route as AuthenticatedContactosRouteImport } from './routes/_authenticated/contactos'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
@@ -55,6 +56,12 @@ const AuthenticatedAnalyticsRoute = AuthenticatedAnalyticsRouteImport.update({
   path: '/analytics',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedComparativoRoute =
+  AuthenticatedComparativoRouteImport.update({
+    id: '/comparativo',
+    path: '/comparativo',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedConfiguracionRoute =
   AuthenticatedConfiguracionRouteImport.update({
     id: '/configuracion',
@@ -108,6 +115,7 @@ export interface FileRoutesByFullPath {
   '/onboarding': typeof OnboardingRoute
   '/analisis-estrategico': typeof AuthenticatedAnalisisEstrategicoRoute
   '/analytics': typeof AuthenticatedAnalyticsRoute
+  '/comparativo': typeof AuthenticatedComparativoRoute
   '/configuracion': typeof AuthenticatedConfiguracionRoute
   '/contactos': typeof AuthenticatedContactosRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -124,6 +132,7 @@ export interface FileRoutesByTo {
   '/onboarding': typeof OnboardingRoute
   '/analisis-estrategico': typeof AuthenticatedAnalisisEstrategicoRoute
   '/analytics': typeof AuthenticatedAnalyticsRoute
+  '/comparativo': typeof AuthenticatedComparativoRoute
   '/configuracion': typeof AuthenticatedConfiguracionRoute
   '/contactos': typeof AuthenticatedContactosRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -142,6 +151,7 @@ export interface FileRoutesById {
   '/onboarding': typeof OnboardingRoute
   '/_authenticated/analisis-estrategico': typeof AuthenticatedAnalisisEstrategicoRoute
   '/_authenticated/analytics': typeof AuthenticatedAnalyticsRoute
+  '/_authenticated/comparativo': typeof AuthenticatedComparativoRoute
   '/_authenticated/configuracion': typeof AuthenticatedConfiguracionRoute
   '/_authenticated/contactos': typeof AuthenticatedContactosRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
@@ -160,6 +170,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/analisis-estrategico'
     | '/analytics'
+    | '/comparativo'
     | '/configuracion'
     | '/contactos'
     | '/dashboard'
@@ -176,6 +187,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/analisis-estrategico'
     | '/analytics'
+    | '/comparativo'
     | '/configuracion'
     | '/contactos'
     | '/dashboard'
@@ -193,6 +205,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/_authenticated/analisis-estrategico'
     | '/_authenticated/analytics'
+    | '/_authenticated/comparativo'
     | '/_authenticated/configuracion'
     | '/_authenticated/contactos'
     | '/_authenticated/dashboard'
@@ -253,6 +266,13 @@ declare module '@tanstack/react-router' {
       path: '/analytics'
       fullPath: '/analytics'
       preLoaderRoute: typeof AuthenticatedAnalyticsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/comparativo': {
+      id: '/_authenticated/comparativo'
+      path: '/comparativo'
+      fullPath: '/comparativo'
+      preLoaderRoute: typeof AuthenticatedComparativoRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/configuracion': {
@@ -324,6 +344,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAnalisisEstrategicoRoute: typeof AuthenticatedAnalisisEstrategicoRoute
   AuthenticatedAnalyticsRoute: typeof AuthenticatedAnalyticsRoute
+  AuthenticatedComparativoRoute: typeof AuthenticatedComparativoRoute
   AuthenticatedConfiguracionRoute: typeof AuthenticatedConfiguracionRoute
   AuthenticatedContactosRoute: typeof AuthenticatedContactosRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
@@ -338,6 +359,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAnalisisEstrategicoRoute: AuthenticatedAnalisisEstrategicoRoute,
   AuthenticatedAnalyticsRoute: AuthenticatedAnalyticsRoute,
+  AuthenticatedComparativoRoute: AuthenticatedComparativoRoute,
   AuthenticatedConfiguracionRoute: AuthenticatedConfiguracionRoute,
   AuthenticatedContactosRoute: AuthenticatedContactosRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
