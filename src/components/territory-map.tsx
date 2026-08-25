@@ -187,7 +187,7 @@ function popupHtml(
           ${winner.etiqueta}
         </p>
         <div style="display:flex;justify-content:space-between;font-size:12px">
-          <b>${winner.ganador}</b>
+          <b translate="no">${winner.ganador}</b>
           <span style="opacity:.7">${winner.participacion !== null ? `${winner.participacion}% part.` : ""}</span>
         </div>
         <div style="font-size:10px;opacity:.6;margin-top:2px">
@@ -276,6 +276,23 @@ export default function TerritoryMap({
   onAddRef.current = onAddContact;
 
   /**
+   * Ganadores y metas se leen por referencia, igual que los manejadores.
+   *
+   * Iban en las dependencias del efecto que dibuja el mapa, y como el padre los
+   * pasa con un `?? {}` de respaldo, cada render creaba un objeto nuevo: el
+   * efecto se disparaba sin parar, borrando y redibujando las 1,800 capas una y
+   * otra vez. En escritorio se notaba como lentitud; en móvil agotaba la memoria
+   * y el navegador pedía recargar la página.
+   *
+   * El popup se construye en el momento de abrirse, así que leer de la
+   * referencia le da igualmente el dato más reciente.
+   */
+  const winnersRef = useRef(winners);
+  winnersRef.current = winners;
+  const goalsRef = useRef(goals);
+  goalsRef.current = goals;
+
+  /**
    * Sección cuyo popup está abierto. Al guardar un contacto cambian los
    * conteos, el mapa se redibuja y el popup se destruiría; con esto se vuelve a
    * abrir ya con la cifra actualizada.
@@ -337,7 +354,14 @@ export default function TerritoryMap({
       const idx = Math.min(SCALE.length - 1, Math.floor((value / max) * SCALE.length));
       const color = SCALE[idx] ?? SCALE[0]!;
       const content = () =>
-        buildPopup(u, contacts, onAddRef.current, canAddContact, winners[u.section_code], goals[u.section_code]);
+        buildPopup(
+          u,
+          contacts,
+          onAddRef.current,
+          canAddContact,
+          winnersRef.current[u.section_code],
+          goalsRef.current[u.section_code],
+        );
 
       const track = (l: L.Layer) => {
         l.on("popupopen", () => {
@@ -392,7 +416,7 @@ export default function TerritoryMap({
       const owner = popupOwnersRef.current.get(reopen);
       if (owner) owner.openPopup();
     }
-  }, [units, geometryById, contactCounts, winners, goals, metric, max, values, fitKey, canAddContact]);
+  }, [units, geometryById, contactCounts, metric, max, values, fitKey, canAddContact]);
 
   // --- Resaltar. Solo cambia el estilo; nunca redibuja ni mueve la vista. ---
   useEffect(() => {

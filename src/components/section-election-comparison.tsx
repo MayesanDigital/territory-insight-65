@@ -128,7 +128,9 @@ function FilaEleccion({ proceso }: { proceso: ResultadoSeccion }) {
           className="h-2.5 w-2.5 shrink-0 rounded-full"
           style={{ backgroundColor: colorDe(ganador.partidos?.[0] ?? ganador.etiqueta) }}
         />
-        <span className="flex-1 truncate text-sm font-medium">{ganador.etiqueta}</span>
+        <span className="flex-1 truncate text-sm font-medium" translate="no">
+          {ganador.etiqueta}
+        </span>
         <span className="text-sm tabular-nums">{fmt(ganador.votos)}</span>
         <span className="w-14 text-right text-sm tabular-nums">{ganador.porcentaje}%</span>
       </div>
@@ -170,7 +172,9 @@ function FilaEleccion({ proceso }: { proceso: ResultadoSeccion }) {
                     className="h-2 w-2 shrink-0 rounded-full"
                     style={{ backgroundColor: colorDe(p.siglas) }}
                   />
-                  <span className="flex-1 truncate text-muted-foreground">{p.nombre}</span>
+                  <span className="flex-1 truncate text-muted-foreground" translate="no">
+                    {p.nombre}
+                  </span>
                   <span className="tabular-nums">{fmt(p.votos)}</span>
                   <span className="w-12 text-right tabular-nums text-muted-foreground">
                     {p.porcentaje}%
@@ -186,7 +190,9 @@ function FilaEleccion({ proceso }: { proceso: ResultadoSeccion }) {
                   {proceso.coaliciones.map((c) => (
                     <div key={c.siglas} className="flex items-center gap-2 text-xs">
                       <span className="h-2 w-2 shrink-0 rounded-full bg-muted-foreground/40" />
-                      <span className="flex-1 truncate text-muted-foreground">{c.siglas}</span>
+                      <span className="flex-1 truncate text-muted-foreground" translate="no">
+                        {c.siglas}
+                      </span>
                       <span className="tabular-nums">{fmt(c.votos)}</span>
                       <span className="w-12 text-right tabular-nums text-muted-foreground">
                         {c.porcentaje}%
