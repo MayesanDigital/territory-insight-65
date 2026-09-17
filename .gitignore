@@ -47,3 +47,6 @@ respaldos/
 *.njsproj
 *.sln
 *.sw?
+
+# Caché de Python de los scripts ETL
+__pycache__/
