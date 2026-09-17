@@ -63,15 +63,23 @@ export function MonitorSearch({ onMonitorReady, disabled }: Props) {
         );
       } else {
         const leidas = result.full_text?.read ?? 0;
+        const redes = (result.social?.facebook ?? 0) + (result.social?.instagram ?? 0);
+        const bloqueadas = result.social?.blocked ?? [];
+        const detalle = [
+          leidas > 0
+            ? `${leidas} ${leidas === 1 ? "nota se analizó" : "notas se analizaron"} sobre el artículo completo.`
+            : null,
+          redes > 0 ? `${redes} de Facebook e Instagram.` : null,
+          // Cero publicaciones por bloqueo no es lo mismo que cero publicaciones.
+          bloqueadas.length
+            ? `El buscador limitó la consulta a ${bloqueadas.join(" y ")}; vuelve a intentarlo en un minuto.`
+            : null,
+        ].filter(Boolean);
         toast.success(
           `${result.items_new} menciones nuevas de ${result.sources_checked} ${
             result.sources_checked === 1 ? "fuente" : "fuentes"
           }.`,
-          leidas > 0
-            ? {
-                description: `${leidas} ${leidas === 1 ? "nota se analizó" : "notas se analizaron"} sobre el artículo completo.`,
-              }
-            : undefined,
+          detalle.length ? { description: detalle.join(" "), duration: 8000 } : undefined,
         );
       }
       setQuery("");

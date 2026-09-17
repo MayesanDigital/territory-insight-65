@@ -32,6 +32,7 @@ import {
   type FeedItem,
 } from "../_shared/rss.ts";
 import { readMany, snippetAround } from "../_shared/reader.ts";
+import { buscaEnRedes } from "../_shared/social.ts";
 
 const USER_AGENT =
   Deno.env.get("MONITORING_USER_AGENT") ??
@@ -46,6 +47,8 @@ const MAX_ITEMS_PER_RUN = 120;
 const EXCERPT_MAX = 320;
 /** Notas por corrida cuyo texto completo se lee con Jina Reader. */
 const FULLTEXT_LIMIT = 15;
+/** Publicaciones por red social y corrida. */
+const SOCIAL_LIMIT = 10;
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -183,6 +186,33 @@ Deno.serve(async (req) => {
     }
   }
 
+  // --- REDES SOCIALES
+  // Facebook e Instagram no publican feeds ni buscador propio: lo que se puede
+  // consultar es lo que un buscador tiene indexado de sus publicaciones
+  // públicas. Va después de los feeds para que un bloqueo del buscador no
+  // retrase la parte que siempre funciona.
+  const { publicaciones, reporte: social } = await buscaEnRedes(
+    isPerson ? `"${searchTerm}"` : searchTerm,
+    USER_AGENT,
+    { maximoPorRed: SOCIAL_LIMIT },
+  );
+  for (const p of publicaciones) {
+    collected.push({
+      title: p.title,
+      link: p.url,
+      description: p.excerpt,
+      // El buscador solo muestra la fecha en parte de los resultados. Si falta,
+      // se marca abajo para no presentar la fecha de la corrida como si fuera la
+      // de la publicación.
+      publishedAt: p.publishedAt,
+      // Nunca se guarda quién publicó: en redes son personas identificables y
+      // el PRD §16 lo prohíbe, igual que en los foros.
+      author: null,
+      sourceName: p.domain,
+      sourceType: "social",
+    });
+  }
+
   // --- EXTRACCIÓN + RELEVANCIA
   const analyzed = collected
     .map((item) => {
@@ -212,6 +242,9 @@ Deno.serve(async (req) => {
         sourceDomain: source ?? item.sourceName ?? domainOf(url),
         sourceType: item.sourceType,
         engagement: item.engagement ?? 0,
+        // Lo indexado por el buscador llega sin fecha. Se guarda la de la
+        // corrida para poder ordenar, marcada como aproximada.
+        dateEstimated: item.publishedAt === null && item.sourceType === "social",
       };
     })
     // Doble criterio. El primero es cualitativo y es el que evita traer a otra
@@ -228,7 +261,10 @@ Deno.serve(async (req) => {
   // como enlace de fuente.
   const byKey = new Map<string, (typeof analyzed)[number]>();
   for (const m of analyzed) {
-    const key = contentKey(m.title);
+    // En redes el título se repite entre publicaciones distintas de la misma
+    // cuenta ("David Monreal Avila | Facebook"), así que cada publicación se
+    // identifica por su enlace y no por el titular.
+    const key = m.sourceType === "social" ? m.url : contentKey(m.title);
     if (key.length < 10) continue;
     const kept = byKey.get(key);
     if (!kept) byKey.set(key, m);
@@ -304,6 +340,7 @@ Deno.serve(async (req) => {
           engagement: m.engagement,
           full_text_analyzed: m.fullText,
           published_at: m.publishedAt,
+          published_at_estimated: m.dateEstimated,
         },
         // url_hash es una columna generada; nombrarla evita el límite de tamaño
         // del índice con URLs largas y es lo que PostgREST sabe resolver.
@@ -388,6 +425,14 @@ Deno.serve(async (req) => {
     items_new: inserted,
     total_mentions: total ?? 0,
     topics: topics.map((t) => t.topic),
+    // Qué se pudo traer de cada red y qué no: sin esto, cero menciones de
+    // Instagram parece "no se habla de él" cuando puede ser un bloqueo.
+    social: {
+      facebook: social.encontradas.facebook,
+      instagram: social.encontradas.instagram,
+      blocked: social.bloqueadas,
+      failures: social.fallos,
+    },
     // La lectura completa es un complemento: sus fallos no cambian `status`,
     // porque la nota no leída se guarda igualmente con su extracto.
     full_text: {

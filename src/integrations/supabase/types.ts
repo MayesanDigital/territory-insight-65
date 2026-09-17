@@ -1235,6 +1235,7 @@ export type Database = {
           monitor_id: string | null
           org_id: string
           published_at: string
+          published_at_estimated: boolean
           reach: number | null
           relevance: number | null
           sentiment: Database["public"]["Enums"]["sentiment_label"] | null
@@ -1257,6 +1258,7 @@ export type Database = {
           monitor_id?: string | null
           org_id: string
           published_at?: string
+          published_at_estimated?: boolean
           reach?: number | null
           relevance?: number | null
           sentiment?: Database["public"]["Enums"]["sentiment_label"] | null
@@ -1279,6 +1281,7 @@ export type Database = {
           monitor_id?: string | null
           org_id?: string
           published_at?: string
+          published_at_estimated?: boolean
           reach?: number | null
           relevance?: number | null
           sentiment?: Database["public"]["Enums"]["sentiment_label"] | null

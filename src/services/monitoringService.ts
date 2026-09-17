@@ -20,6 +20,13 @@ export interface IngestResult {
     stopped_because: "rate_limited" | "time_budget" | null;
     failures: Record<string, number>;
   };
+  /** Publicaciones halladas en redes sociales y redes que respondieron con un bloqueo. */
+  social?: {
+    facebook: number;
+    instagram: number;
+    blocked: Array<"facebook" | "instagram">;
+    failures: Array<{ red: string; motivo: string }>;
+  };
   errors: Array<{ url: string; message: string }>;
 }
 

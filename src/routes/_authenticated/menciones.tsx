@@ -78,6 +78,19 @@ function MencionesPage() {
                 >
                   {SENTIMENT_LABELS[m.sentiment ?? "neutral"]}
                 </Badge>
+                {m.source_type === "social" && (
+                  <Badge variant="outline" title="Publicación pública encontrada en la red social">
+                    {m.source_domain?.includes("instagram") ? "Instagram" : "Facebook"}
+                  </Badge>
+                )}
+                {m.published_at_estimated && (
+                  <Badge
+                    variant="outline"
+                    title="La red social no publica la fecha; esta es la fecha en que se detectó la mención"
+                  >
+                    Fecha aproximada
+                  </Badge>
+                )}
                 {m.full_text_analyzed && (
                   <Badge
                     variant="outline"
