@@ -153,6 +153,19 @@ Deno.serve(async (req) => {
       type: "news",
       name: null,
     },
+    // Segunda consulta a Google News sin comillas. La frase exacta trae lo más
+    // limpio, pero deja fuera al medio que escribe "Monreal Ávila, David" o mete
+    // un segundo nombre; `matchesSubject` sigue exigiendo que la persona
+    // aparezca, así que la consulta amplia suma cobertura sin colar a otros.
+    ...(isPerson
+      ? [
+          {
+            url: googleNewsFeed(searchTerm, monitor.language ?? "es-419", monitor.country ?? "MX", false),
+            type: "news",
+            name: null,
+          },
+        ]
+      : []),
     // Segundo índice de noticias: Bing lista medios que Google no, y viceversa.
     { url: bingNewsFeed(isPerson ? `"${searchTerm}"` : searchTerm), type: "news", name: null },
     // Reddit por RSS. Su endpoint .json responde 403 a peticiones de servidor
