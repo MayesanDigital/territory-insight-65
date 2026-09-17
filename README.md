@@ -647,25 +647,20 @@ responsive design
 
 La aplicación debe quedar preparada para conectar datasets territoriales reales y servicios externos mediante APIs.
 
-This project was built with [Lovable](https://lovable.dev).
+## Desarrollo local
 
-**Live app**: https://territory-insight-65.lovable.app
-
-## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/9447552c-69d0-4210-ac02-cb6b1c6eba83).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
-
-## Development
-
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+Requiere [Bun](https://bun.sh) y un archivo `.env` basado en `.env.example`.
 
 ```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
-npm run dev
+bun install
+bun run dev
 ```
+
+La aplicación queda en http://localhost:8080.
+
+## Despliegue
+
+Producción se despliega en Vercel (`vercel.json`): cada push a `main` compila con
+`bun run build` y publica `.vercel/output`. Las variables de `.env.example` deben
+configurarse en el proyecto de Vercel. La base de datos y las Edge Functions se
+administran con la CLI de Supabase (`supabase db push`, `supabase functions deploy`).

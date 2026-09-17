@@ -38,7 +38,7 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
 // Con la Build Output API de Vercel el routing sale de .vercel/output/config.json,
 // que nitro regenera en cada build — la clave "headers" de vercel.json se ignora.
 // Por eso las cabeceras de seguridad se aplican aquí, donde además valen igual
-// en cualquier target (Vercel, Cloudflare o el preview de Lovable).
+// en cualquier target (Vercel en producción o el servidor local).
 const SECURITY_HEADERS: Record<string, string> = {
   "x-content-type-options": "nosniff",
   "x-frame-options": "DENY",

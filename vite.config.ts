@@ -1,20 +1,38 @@
-// @lovable.dev/vite-tanstack-config already includes the following — do NOT add them manually
-// or the app will break with duplicate plugins:
-//   - TanStack devtools (dev-only, first), tanstackStart, viteReact, tailwindcss, tsConfigPaths,
-//     nitro (build-only using cloudflare as a default target), VITE_* env injection, @ path alias,
-//     React/TanStack dedupe, error logger plugins, and sandbox detection (port/host/strictPort).
-// You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
-import { defineConfig } from "@lovable.dev/vite-tanstack-config";
+import { defineConfig } from "vite";
+import tailwindcss from "@tailwindcss/vite";
+import tsConfigPaths from "vite-tsconfig-paths";
+import viteReact from "@vitejs/plugin-react";
+import { tanstackStart } from "@tanstack/react-start/plugin/vite";
+import { nitro } from "nitro/vite";
 
-export default defineConfig({
-  tanstackStart: {
-    // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
-    // nitro/vite builds from this
-    server: { entry: "server" },
+export default defineConfig(({ command }) => ({
+  server: { host: "::", port: 8080 },
+  css: { transformer: "lightningcss" },
+  resolve: {
+    alias: { "@": `${process.cwd()}/src` },
+    dedupe: [
+      "react",
+      "react-dom",
+      "react/jsx-runtime",
+      "react/jsx-dev-runtime",
+      "@tanstack/react-query",
+      "@tanstack/query-core",
+    ],
   },
-  // Producción se despliega en Vercel. Sin esto, nitro cae en su preset por
-  // defecto (cloudflare-module) y genera un worker que Vercel no sabe servir.
-  // Dentro de un build de Lovable este override se ignora: la plataforma fuerza
-  // Cloudflare para su propio preview, así que fijarlo aquí no rompe el sync.
-  nitro: { preset: "vercel" },
-});
+  plugins: [
+    tailwindcss(),
+    tsConfigPaths({ projects: ["./tsconfig.json"] }),
+    tanstackStart({
+      // El código de servidor no debe acabar en el bundle del navegador.
+      importProtection: {
+        behavior: "error",
+        client: { files: ["**/server/**"], specifiers: ["server-only"] },
+      },
+      // Entrada SSR propia (src/server.ts): envuelve errores y añade cabeceras de seguridad.
+      server: { entry: "server" },
+    }),
+    // Producción se despliega en Vercel; nitro solo participa en el build.
+    ...(command === "build" ? [nitro({ preset: "vercel" })] : []),
+    viteReact(),
+  ],
+}));
