@@ -62,10 +62,16 @@ export function MonitorSearch({ onMonitorReady, disabled }: Props) {
           { duration: 8000 },
         );
       } else {
+        const leidas = result.full_text?.read ?? 0;
         toast.success(
           `${result.items_new} menciones nuevas de ${result.sources_checked} ${
             result.sources_checked === 1 ? "fuente" : "fuentes"
           }.`,
+          leidas > 0
+            ? {
+                description: `${leidas} ${leidas === 1 ? "nota se analizó" : "notas se analizaron"} sobre el artículo completo.`,
+              }
+            : undefined,
         );
       }
       setQuery("");
@@ -127,7 +133,7 @@ export function MonitorSearch({ onMonitorReady, disabled }: Props) {
 
         <p className="mt-3 text-xs text-muted-foreground">
           {search.isPending
-            ? "Consultando fuentes públicas y analizando resultados. Puede tardar unos segundos."
+            ? "Consultando fuentes y leyendo los artículos más relevantes. Puede tardar hasta un minuto."
             : "Rastrea noticias, blogs y sitios públicos vía RSS. Solo contenido abierto: no accede a perfiles privados ni a contenido tras registro."}
         </p>
       </CardContent>

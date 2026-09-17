@@ -27,10 +27,11 @@ import {
   googleNewsFeed,
   parseFeed,
   redditSearchFeed,
+  resolveNewsLink,
   splitGoogleTitle,
-  unwrapGoogleNews,
   type FeedItem,
 } from "../_shared/rss.ts";
+import { readMany, snippetAround } from "../_shared/reader.ts";
 
 const USER_AGENT =
   Deno.env.get("MONITORING_USER_AGENT") ??
@@ -43,6 +44,8 @@ const FETCH_TIMEOUT_MS = 15_000;
 const MAX_ITEMS_PER_RUN = 120;
 /** El PRD §14 pide no almacenar más contenido del necesario. */
 const EXCERPT_MAX = 320;
+/** Notas por corrida cuyo texto completo se lee con Jina Reader. */
+const FULLTEXT_LIMIT = 15;
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -190,60 +193,97 @@ Deno.serve(async (req) => {
       const { title, source } = fromGoogle
         ? splitGoogleTitle(item.title)
         : { title: item.title, source: null };
-      const url = unwrapGoogleNews(item.link);
+      const { url, resolvable } = resolveNewsLink(item.link);
       const excerpt = item.description.slice(0, EXCERPT_MAX);
       const relevance = calculateRelevance(
         { title, excerpt, publishedAt: item.publishedAt, sourceType: item.sourceType },
         monitor.query,
       );
-      const sentiment = analyzeSentiment(`${title}. ${excerpt}`);
       return {
         title,
         url,
+        resolvable,
         excerpt,
         relevance,
-        sentiment,
         publishedAt: item.publishedAt ?? new Date().toISOString(),
         author: item.author,
+        // Con la URL ya resuelta el dominio es el del medio. Antes las notas de
+        // Bing quedaban atribuidas a "bing.com" porque se guardaba su redirector.
         sourceDomain: source ?? item.sourceName ?? domainOf(url),
         sourceType: item.sourceType,
         engagement: item.engagement ?? 0,
       };
     })
-    // Descartar lo que apenas roza el término buscado: una consulta amplia
-    // arrastra ruido que ensuciaría el sentimiento agregado.
     // Doble criterio. El primero es cualitativo y es el que evita traer a otra
     // persona: el sujeto vigilado tiene que aparecer literalmente. El segundo
-    // ordena lo que ya se sabe pertinente.
+    // descarta lo que apenas roza el término buscado.
     .filter((m) => matchesSubject(`${m.title} ${m.excerpt}`, monitor.query, monitor.subject_type))
     .filter((m) => m.relevance >= (isPerson ? 0.5 : 0.35))
     .sort((a, b) => b.relevance - a.relevance);
 
-  // La misma nota se republica en varios medios y llega con URLs distintas, así
-  // que la unicidad por URL no la detecta. Se conserva la de mayor relevancia,
-  // que es la primera tras ordenar.
-  const seen = new Set<string>();
-  const deduped = analyzed
-    .filter((m) => {
-      const key = contentKey(m.title);
-      if (key.length < 10 || seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
+  // La misma nota se republica en varios medios y llega por varios agregadores
+  // con URLs distintas, así que la unicidad por URL no la detecta. Cuando la
+  // misma nota llega por Google y por Bing se conserva la de Bing: es la que
+  // enlaza al medio real, la única que se puede leer completa y la que sirve
+  // como enlace de fuente.
+  const byKey = new Map<string, (typeof analyzed)[number]>();
+  for (const m of analyzed) {
+    const key = contentKey(m.title);
+    if (key.length < 10) continue;
+    const kept = byKey.get(key);
+    if (!kept) byKey.set(key, m);
+    else if (!kept.resolvable && m.resolvable) {
+      byKey.set(key, { ...m, relevance: Math.max(kept.relevance, m.relevance) });
+    }
+  }
+  const deduped = [...byKey.values()]
+    .sort((a, b) => b.relevance - a.relevance)
     .slice(0, MAX_ITEMS_PER_RUN);
 
+  // --- LECTURA DEL TEXTO COMPLETO
+  // Solo las notas más relevantes y con enlace real. Sin clave de Jina el límite
+  // es de 20 lecturas por minuto: leerlas todas haría esperar varios minutos.
+  const toRead = deduped
+    .filter((m) => m.resolvable && m.sourceType === "news")
+    .slice(0, FULLTEXT_LIMIT)
+    .map((m) => m.url);
+  const { texts, report: reading } = await readMany(toRead, USER_AGENT, {
+    concurrency: 5,
+    budgetMs: 45_000,
+  });
+
+  // --- SENTIMIENTO, sobre el cuerpo cuando se pudo leer
+  const needle = isPerson ? searchTerm : monitor.query.replace(/"/g, "").trim();
+  const finalItems = deduped.map((m) => {
+    const body = texts.get(m.url) ?? null;
+    return {
+      ...m,
+      body,
+      fullText: body !== null,
+      sentiment: analyzeSentiment(body ? `${m.title}. ${body}` : `${m.title}. ${m.excerpt}`),
+      relevance: body
+        ? calculateRelevance(
+            { title: m.title, excerpt: body, publishedAt: m.publishedAt, sourceType: m.sourceType },
+            monitor.query,
+          )
+        : m.relevance,
+      // Del artículo solo se guarda el fragmento donde aparece el sujeto (PRD §14).
+      excerpt: (body && snippetAround(body, needle, m.title)) || m.excerpt,
+    };
+  });
+
   // --- TEMAS sobre el conjunto de la corrida
-  const topics = extractTopics(deduped.map((m) => `${m.title} ${m.excerpt}`), 10);
+  const topics = extractTopics(finalItems.map((m) => `${m.title} ${m.body ?? m.excerpt}`), 10);
   const topicOf = (text: string) => {
     const lower = text.toLowerCase();
     return topics.find((t) => lower.includes(t.topic))?.topic ?? null;
   };
 
-  // --- DEDUPLICACIÓN + PERSISTENCIA
-  // El índice único (monitor_id, md5(url)) hace idempotente la corrida: volver
-  // a ejecutar el monitor no duplica lo ya guardado.
+  // --- PERSISTENCIA
+  // El índice único (monitor_id, url_hash) hace idempotente la corrida: volver a
+  // ejecutar el monitor no duplica lo ya guardado.
   let inserted = 0;
-  for (const m of deduped) {
+  for (const m of finalItems) {
     const { data, error } = await supabase
       .from("web_mentions")
       .upsert(
@@ -259,9 +299,10 @@ Deno.serve(async (req) => {
           language: monitor.language ?? "es",
           sentiment: m.sentiment.label,
           sentiment_score: m.sentiment.score,
-          topic: topicOf(`${m.title} ${m.excerpt}`),
+          topic: topicOf(`${m.title} ${m.body ?? m.excerpt}`),
           relevance: m.relevance,
           engagement: m.engagement,
+          full_text_analyzed: m.fullText,
           published_at: m.publishedAt,
         },
         // url_hash es una columna generada; nombrarla evita el límite de tamaño
@@ -276,8 +317,8 @@ Deno.serve(async (req) => {
     }
     if (data && data.length > 0) {
       inserted++;
-      // Traza del motor que produjo el veredicto, para poder comparar si
-      // mañana se cambia la heurística por otro analizador.
+      // Traza del motor que produjo el veredicto. El sufijo distingue lo
+      // analizado sobre el artículo de lo analizado solo con el titular.
       await supabase.from("sentiment_analysis").upsert(
         {
           org_id: orgId,
@@ -286,7 +327,7 @@ Deno.serve(async (req) => {
           score: m.sentiment.score,
           matches: m.sentiment.matches,
           relevance: m.relevance,
-          engine: "heuristic-es-v1",
+          engine: m.fullText ? "heuristic-es-v1+fulltext" : "heuristic-es-v1",
         },
         { onConflict: "mention_id,engine" },
       );
@@ -347,6 +388,14 @@ Deno.serve(async (req) => {
     items_new: inserted,
     total_mentions: total ?? 0,
     topics: topics.map((t) => t.topic),
+    // La lectura completa es un complemento: sus fallos no cambian `status`,
+    // porque la nota no leída se guarda igualmente con su extracto.
+    full_text: {
+      attempted: reading.attempted,
+      read: reading.read,
+      stopped_because: reading.stoppedBecause,
+      failures: reading.failures,
+    },
     errors,
   });
 });

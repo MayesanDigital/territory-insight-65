@@ -13,6 +13,13 @@ export interface IngestResult {
   items_new: number;
   total_mentions: number;
   topics: string[];
+  /** Lectura del artículo completo con Jina Reader, sobre las notas más relevantes. */
+  full_text?: {
+    attempted: number;
+    read: number;
+    stopped_because: "rate_limited" | "time_budget" | null;
+    failures: Record<string, number>;
+  };
   errors: Array<{ url: string; message: string }>;
 }
 

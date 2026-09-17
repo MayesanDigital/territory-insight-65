@@ -148,18 +148,31 @@ export function redditSearchFeed(query: string, limit = 25): string {
 }
 
 /**
- * Google News envuelve cada enlace en un redirector propio. Muchos traen la
- * URL real en el parámetro `url`; cuando no, se conserva el enlace tal cual
- * porque seguir la redirección exigiría una petición extra por nota.
+ * Resuelve el enlace real del medio a partir del enlace que da el agregador.
+ *
+ * - Bing entrega `bing.com/news/apiclick.aspx?...&url=<real>`: la URL del medio
+ *   viene en el parámetro y se extrae sin peticiones adicionales.
+ * - Google News entrega identificadores opacos (`/rss/articles/CBMi…`) que no
+ *   contienen la URL; resolverlos exige consultar servicios internos de Google.
+ *   Se dejan tal cual y se marcan como no resolubles.
+ *
+ * Esta función sustituye a `unwrapGoogleNews`, que solo buscaba el parámetro
+ * `url` en enlaces de Google: los enlaces actuales de Google no lo traen, así
+ * que en la práctica nunca desenvolvía nada y se guardaba el redireccionador.
  */
-export function unwrapGoogleNews(url: string): string {
+export function resolveNewsLink(url: string): { url: string; resolvable: boolean } {
   try {
     const parsed = new URL(url);
-    if (!parsed.hostname.endsWith("news.google.com")) return url;
-    const real = parsed.searchParams.get("url");
-    return real ?? url;
+    const host = parsed.hostname;
+    const embedded = parsed.searchParams.get("url");
+
+    if ((host.endsWith("bing.com") || host.endsWith("news.google.com")) && embedded) {
+      return { url: embedded, resolvable: true };
+    }
+    if (host.endsWith("news.google.com")) return { url, resolvable: false };
+    return { url, resolvable: true };
   } catch {
-    return url;
+    return { url, resolvable: false };
   }
 }
 

@@ -78,6 +78,14 @@ function MencionesPage() {
                 >
                   {SENTIMENT_LABELS[m.sentiment ?? "neutral"]}
                 </Badge>
+                {m.full_text_analyzed && (
+                  <Badge
+                    variant="outline"
+                    title="El sentimiento se calculó sobre el artículo completo, no solo el titular"
+                  >
+                    Texto completo
+                  </Badge>
+                )}
                 <span className="text-xs text-muted-foreground">
                   {m.source_domain} · {new Date(m.published_at).toLocaleDateString("es-MX")}
                 </span>
