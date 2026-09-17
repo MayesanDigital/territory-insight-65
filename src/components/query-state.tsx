@@ -19,8 +19,28 @@ interface ErrorStateProps {
   compact?: boolean;
 }
 
+/**
+ * Texto legible de un error. Los errores de Supabase son objetos planos
+ * ({ message, code, details }), no instancias de Error, y String() los mostraba
+ * como "[object Object]", que no permite saber qué falló.
+ */
+export function describeError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object") {
+    const e = error as { message?: unknown; code?: unknown; details?: unknown; hint?: unknown };
+    const partes = [e.message, e.details, e.hint].filter((x) => typeof x === "string" && x);
+    if (partes.length) return `${partes.join(" · ")}${e.code ? ` (${String(e.code)})` : ""}`;
+    try {
+      return JSON.stringify(error);
+    } catch {
+      /* se cae al texto genérico */
+    }
+  }
+  return typeof error === "string" && error ? error : "Error desconocido";
+}
+
 export function ErrorState({ error, onRetry, what, compact }: ErrorStateProps) {
-  const message = error instanceof Error ? error.message : String(error ?? "Error desconocido");
+  const message = describeError(error);
 
   return (
     <div
