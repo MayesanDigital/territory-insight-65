@@ -330,7 +330,15 @@ function Contenido({ datos }: { datos: Comparativo }) {
   );
 }
 
-function Metrica({ etiqueta, valor, color }: { etiqueta: string; valor: string; color?: string }) {
+function Metrica({
+  etiqueta,
+  valor,
+  color,
+}: {
+  etiqueta: string;
+  valor: string;
+  color?: string | undefined;
+}) {
   return (
     <div>
       <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{etiqueta}</p>

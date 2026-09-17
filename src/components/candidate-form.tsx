@@ -38,7 +38,10 @@ export function CandidateForm() {
    * usuario puede seguir editando el resto y pulsar Guardar una sola vez.
    */
   const subirFoto = async (file: File) => {
-    if (!orgId) return toast.error("Sin organización asignada");
+    if (!orgId) {
+      toast.error("Sin organización asignada");
+      return;
+    }
     setSubiendo(true);
     try {
       const url = await campaignService.uploadPhoto(orgId, file);

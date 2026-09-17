@@ -234,8 +234,8 @@ export function generarPlan(
     recomendaciones.push({
       titulo: "Ampliar la base de medios",
       detalle:
-        `La cobertura se concentra en ${analytics.sources[0].domain} con ` +
-        `${analytics.sources[0].total} de ${total} menciones. Depender de una sola fuente deja ` +
+        `La cobertura se concentra en ${analytics.sources[0]!.domain} con ` +
+        `${analytics.sources[0]!.total} de ${total} menciones. Depender de una sola fuente deja ` +
         `la narrativa en manos ajenas: conviene abrir relación con medios locales que hoy no ` +
         `están publicando.`,
       plazo: "Dos semanas",

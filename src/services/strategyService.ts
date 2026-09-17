@@ -158,7 +158,8 @@ function clasifica(procesos: ResultadoProceso[], totalProcesos: number): Clasifi
 
   // Con historial mixto, lo que importa es cómo terminó: perder lo que se tenía
   // exige una respuesta distinta a ganar lo que no se tenía.
-  const ultimo = procesos[procesos.length - 1];
+  // La lista vacía ya salió arriba con "sin_historial".
+  const ultimo = procesos[procesos.length - 1]!;
   return ultimo.gano ? "conquistada" : "perdida";
 }
 
@@ -323,7 +324,7 @@ export const strategyService = {
 
       const tendencia =
         procesos.length >= 2
-          ? Math.round((ultimo.porcentaje - primero.porcentaje) * 10) / 10
+          ? Math.round((ultimo!.porcentaje - primero!.porcentaje) * 10) / 10
           : null;
       const ganadorPct = fuerzaGanadora(propias);
       const margen =

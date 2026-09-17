@@ -250,8 +250,9 @@ export const comparisonService = {
     const lectura: string[] = [];
 
     if (sujetos.length >= 2) {
-      const lider = porVoz[0];
-      const segundo = porVoz[1];
+      // Dentro de `sujetos.length >= 2`: ambos existen.
+      const lider = porVoz[0]!;
+      const segundo = porVoz[1]!;
       lectura.push(
         `${lider.nombre} concentra el ${lider.cuotaVoz}% de las ${totalMenciones} menciones ` +
           `comparadas, frente al ${segundo.cuotaVoz}% de ${segundo.nombre}. ` +
@@ -260,8 +261,8 @@ export const comparisonService = {
             : "La diferencia de volumen es estrecha: ninguno domina la conversación."),
       );
 
-      const mejor = porSaldo[0];
-      const peor = porSaldo[porSaldo.length - 1];
+      const mejor = porSaldo[0]!;
+      const peor = porSaldo[porSaldo.length - 1]!;
       if (mejor.id !== peor.id) {
         lectura.push(
           `En calidad de la conversación, ${mejor.nombre} encabeza con un saldo de ` +

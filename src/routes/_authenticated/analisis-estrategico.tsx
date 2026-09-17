@@ -531,7 +531,7 @@ function filasPlanas(datos: AnalisisEstrategico) {
     fila["Tendencia (pts)"] = s.tendencia ?? "";
     fila["Margen (pts)"] = s.margen ?? "";
     fila["Rival ultima"] = s.rival ?? "";
-    fila.Observacion = s.observacion;
+    fila["Observacion"] = s.observacion;
     return fila;
   });
 }
