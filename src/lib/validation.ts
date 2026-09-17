@@ -49,6 +49,27 @@ export const CATEGORIA_ETIQUETA: Record<(typeof CATEGORIAS)[number], string> = {
 const seleccionObligatoria = (opciones: readonly string[], mensaje: string) =>
   z.string().refine((v) => opciones.includes(v), { message: mensaje });
 
+/**
+ * Deja un nombre de responsable en su forma canónica: sin espacios sobrantes.
+ *
+ * Promotor y movilizador son texto libre y sirven para filtrar. Sin normalizar,
+ * "Juan Pérez" y "Juan  Pérez " quedarían como dos personas y el filtro
+ * repartiría sus contactos entre ambas. La base rechaza los espacios sobrantes
+ * con un CHECK, así que esta limpieza además evita un error al guardar.
+ */
+export const normalizaResponsable = (value: string) => value.replace(/\s+/g, " ").trim();
+
+const responsable = (etiqueta: string) =>
+  z
+    .string()
+    .transform(normalizaResponsable)
+    .refine((v) => v === "" || v.length >= 2, {
+      message: `El nombre del ${etiqueta} debe tener al menos 2 caracteres`,
+    })
+    .refine((v) => v.length <= 120, {
+      message: `El nombre del ${etiqueta} no puede exceder 120 caracteres`,
+    });
+
 export const contactSchema = z.object({
   full_name: z
     .string()
@@ -100,6 +121,10 @@ export const contactSchema = z.object({
       message: "La sección se compone solo de dígitos",
     }),
 
+  // Opcionales: un contacto puede tener promotor, movilizador, ambos o ninguno.
+  promotor: responsable("promotor"),
+  movilizador: responsable("movilizador"),
+
   notes: z.string().trim().max(500, "Las notas no pueden exceder 500 caracteres"),
 
   // Viene premarcado porque el consentimiento se recaba antes de la captura.
@@ -124,6 +149,8 @@ export const emptyContact: ContactFormValues = {
   address: "",
   municipio: "",
   section_code: "",
+  promotor: "",
+  movilizador: "",
   notes: "",
   consent_storage: true,
   consent_comms: true,

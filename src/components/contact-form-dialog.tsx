@@ -1,7 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import {
@@ -32,7 +32,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
-import { contactsService } from "@/services/contactsService";
+import { contactsService, listaResponsables } from "@/services/contactsService";
 import { useAuth } from "@/hooks/useAuth";
 import {
   CATEGORIAS,
@@ -66,6 +66,14 @@ export function ContactFormDialog({
   const qc = useQueryClient();
   const { orgId } = useAuth();
 
+  // Misma clave que usan el mapa y el listado: normalmente ya está en caché.
+  const contactos = useQuery({ queryKey: ["contacts", {}], queryFn: () => contactsService.list() });
+  const promotores = useMemo(() => listaResponsables(contactos.data ?? [], "promotor"), [contactos.data]);
+  const movilizadores = useMemo(
+    () => listaResponsables(contactos.data ?? [], "movilizador"),
+    [contactos.data],
+  );
+
   const form = useForm<ContactFormValues>({
     resolver: zodResolver(contactSchema),
     defaultValues: { ...emptyContact, ...defaults },
@@ -89,6 +97,8 @@ export function ContactFormDialog({
             address: contact.address ?? "",
             municipio: contact.municipio ?? "",
             section_code: contact.section_code ?? "",
+            promotor: contact.promotor ?? "",
+            movilizador: contact.movilizador ?? "",
             notes: contact.notes ?? "",
             consent_storage: contact.consent_storage,
             consent_comms: contact.consent_comms,
@@ -116,6 +126,9 @@ export function ContactFormDialog({
         // tecleado a mano no cruzaría con la "0001" del mapa y el contacto
         // quedaría fuera del conteo de su propia sección.
         section_code: values.section_code ? values.section_code.padStart(4, "0") : null,
+        // El esquema ya los normalizó; vacío se guarda como NULL, no como "".
+        promotor: values.promotor || null,
+        movilizador: values.movilizador || null,
         notes: values.notes.trim() || null,
         consent_storage: values.consent_storage,
         consent_comms: values.consent_comms,
@@ -306,6 +319,60 @@ export function ContactFormDialog({
                 )}
               />
             </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <FormField
+                control={form.control}
+                name="promotor"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Promotor</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        maxLength={120}
+                        autoComplete="off"
+                        list="lista-promotores"
+                        placeholder="Nombre del promotor"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="movilizador"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Movilizador</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        maxLength={120}
+                        autoComplete="off"
+                        list="lista-movilizadores"
+                        placeholder="Nombre del movilizador"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            {/* Sugerencias con los nombres ya capturados. Siguen siendo campos de
+                texto libre, pero elegir de la lista evita que la misma persona
+                quede escrita de dos formas y se parta en los filtros. */}
+            <datalist id="lista-promotores">
+              {promotores.map((p) => (
+                <option key={p} value={p} />
+              ))}
+            </datalist>
+            <datalist id="lista-movilizadores">
+              {movilizadores.map((m) => (
+                <option key={m} value={m} />
+              ))}
+            </datalist>
 
             <FormField
               control={form.control}

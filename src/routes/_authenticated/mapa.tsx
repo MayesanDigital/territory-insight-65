@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { ContactFormDialog } from "@/components/contact-form-dialog";
 import { SectionElectionComparison } from "@/components/section-election-comparison";
 import { SectionContactBreakdown } from "@/components/section-contact-breakdown";
+import { SectionTeamBreakdown } from "@/components/section-team-breakdown";
 import { territoryService } from "@/services/territoryService";
 import { contactsService } from "@/services/contactsService";
 import { electionsService } from "@/services/electionsService";
@@ -108,6 +109,15 @@ function MapaPage() {
     }
     return map;
   }, [contacts.data]);
+
+  // Contactos de la sección seleccionada, para el desglose por equipo.
+  const contactosSeccion = useMemo(
+    () =>
+      selected
+        ? (contacts.data ?? []).filter((c) => c.section_code === selected.section_code)
+        : [],
+    [contacts.data, selected],
+  );
 
   // Ganador de la última municipal y metas fijadas: alimentan el popup para que
   // muestre lo mismo que la ficha lateral. Se piden una vez para todo el mapa;
@@ -275,6 +285,11 @@ function MapaPage() {
 
                 <SectionContactBreakdown
                   counts={counts[selected.section_code] ?? SIN_CONTACTOS}
+                  sectionCode={selected.section_code}
+                />
+
+                <SectionTeamBreakdown
+                  contactos={contactosSeccion}
                   sectionCode={selected.section_code}
                 />
 

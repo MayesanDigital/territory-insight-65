@@ -87,6 +87,23 @@ export const contactsService = {
   },
 };
 
+export type CampoResponsable = "promotor" | "movilizador";
+
+/**
+ * Nombres distintos de promotores o movilizadores, ordenados alfabéticamente.
+ *
+ * Alimenta las sugerencias del formulario y las opciones de los filtros. Se
+ * calcula sobre la lista de contactos ya cargada para no añadir otra consulta.
+ */
+export function listaResponsables(contacts: Contact[], campo: CampoResponsable): string[] {
+  const nombres = new Set<string>();
+  for (const c of contacts) {
+    const valor = c[campo];
+    if (valor) nombres.add(valor);
+  }
+  return [...nombres].sort((a, b) => a.localeCompare(b, "es"));
+}
+
 export function maskPhone(phone: string | null): string {
   if (!phone) return "—";
   const clean = phone.replace(/\s/g, "");

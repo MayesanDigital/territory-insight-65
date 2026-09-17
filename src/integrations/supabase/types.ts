@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.15"
+    PostgrestVersion: "14.5"
   }
   graphql_public: {
     Tables: {
@@ -74,6 +74,59 @@ export type Database = {
           org_id?: string
         }
         Relationships: []
+      }
+      candidates: {
+        Row: {
+          cargo: string | null
+          created_at: string
+          distrito: string | null
+          eslogan: string | null
+          fecha_eleccion: string | null
+          full_name: string
+          id: string
+          municipio: string | null
+          org_id: string
+          partido: string | null
+          photo_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          cargo?: string | null
+          created_at?: string
+          distrito?: string | null
+          eslogan?: string | null
+          fecha_eleccion?: string | null
+          full_name: string
+          id?: string
+          municipio?: string | null
+          org_id: string
+          partido?: string | null
+          photo_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cargo?: string | null
+          created_at?: string
+          distrito?: string | null
+          eslogan?: string | null
+          fecha_eleccion?: string | null
+          full_name?: string
+          id?: string
+          municipio?: string | null
+          org_id?: string
+          partido?: string | null
+          photo_url?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "candidates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       contact_consents: {
         Row: {
@@ -163,84 +216,6 @@ export type Database = {
           },
         ]
       }
-      candidates: {
-        Row: {
-          cargo: string | null
-          created_at: string
-          distrito: string | null
-          eslogan: string | null
-          fecha_eleccion: string | null
-          full_name: string
-          id: string
-          municipio: string | null
-          org_id: string
-          partido: string | null
-          photo_url: string | null
-          updated_at: string
-        }
-        Insert: {
-          cargo?: string | null
-          created_at?: string
-          distrito?: string | null
-          eslogan?: string | null
-          fecha_eleccion?: string | null
-          full_name: string
-          id?: string
-          municipio?: string | null
-          org_id: string
-          partido?: string | null
-          photo_url?: string | null
-          updated_at?: string
-        }
-        Update: {
-          cargo?: string | null
-          created_at?: string
-          distrito?: string | null
-          eslogan?: string | null
-          fecha_eleccion?: string | null
-          full_name?: string
-          id?: string
-          municipio?: string | null
-          org_id?: string
-          partido?: string | null
-          photo_url?: string | null
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      section_goals: {
-        Row: {
-          created_at: string
-          id: string
-          meta_contactos: number
-          notas: string | null
-          org_id: string
-          section_code: string
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          meta_contactos?: number
-          notas?: string | null
-          org_id: string
-          section_code: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          meta_contactos?: number
-          notas?: string | null
-          org_id?: string
-          section_code?: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: []
-      }
       contacts: {
         Row: {
           address: string | null
@@ -255,10 +230,12 @@ export type Database = {
           full_name: string
           gender: string | null
           id: string
+          movilizador: string | null
           municipio: string | null
           notes: string | null
           org_id: string
           phone: string | null
+          promotor: string | null
           registered_at: string
           section_code: string | null
           status: string
@@ -278,10 +255,12 @@ export type Database = {
           full_name: string
           gender?: string | null
           id?: string
+          movilizador?: string | null
           municipio?: string | null
           notes?: string | null
           org_id: string
           phone?: string | null
+          promotor?: string | null
           registered_at?: string
           section_code?: string | null
           status?: string
@@ -301,10 +280,12 @@ export type Database = {
           full_name?: string
           gender?: string | null
           id?: string
+          movilizador?: string | null
           municipio?: string | null
           notes?: string | null
           org_id?: string
           phone?: string | null
+          promotor?: string | null
           registered_at?: string
           section_code?: string | null
           status?: string
@@ -743,6 +724,115 @@ export type Database = {
           },
         ]
       }
+      section_election_results: {
+        Row: {
+          actas: number
+          created_at: string
+          election_label: string
+          election_type: string
+          election_year: number
+          ganador: string | null
+          id: string
+          lista_nominal: number
+          no_registrados: number
+          org_id: string
+          participacion: number | null
+          partidos: Json
+          resultados: Json
+          section_code: string
+          source: string
+          total_votos: number
+          votos_nulos: number
+        }
+        Insert: {
+          actas?: number
+          created_at?: string
+          election_label: string
+          election_type: string
+          election_year: number
+          ganador?: string | null
+          id?: string
+          lista_nominal?: number
+          no_registrados?: number
+          org_id: string
+          participacion?: number | null
+          partidos?: Json
+          resultados?: Json
+          section_code: string
+          source: string
+          total_votos?: number
+          votos_nulos?: number
+        }
+        Update: {
+          actas?: number
+          created_at?: string
+          election_label?: string
+          election_type?: string
+          election_year?: number
+          ganador?: string | null
+          id?: string
+          lista_nominal?: number
+          no_registrados?: number
+          org_id?: string
+          participacion?: number | null
+          partidos?: Json
+          resultados?: Json
+          section_code?: string
+          source?: string
+          total_votos?: number
+          votos_nulos?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "section_election_results_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      section_goals: {
+        Row: {
+          created_at: string
+          id: string
+          meta_contactos: number
+          notas: string | null
+          org_id: string
+          section_code: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          meta_contactos?: number
+          notas?: string | null
+          org_id: string
+          section_code: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          meta_contactos?: number
+          notas?: string | null
+          org_id?: string
+          section_code?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "section_goals_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sentiment_analysis: {
         Row: {
           analyzed_at: string
@@ -855,74 +945,6 @@ export type Database = {
             columns: ["territorial_unit_id"]
             isOneToOne: false
             referencedRelation: "territorial_units_summary"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      section_election_results: {
-        Row: {
-          actas: number
-          created_at: string
-          election_label: string
-          election_type: string
-          election_year: number
-          ganador: string | null
-          id: string
-          lista_nominal: number
-          no_registrados: number
-          org_id: string
-          participacion: number | null
-          partidos: Json
-          resultados: Json
-          section_code: string
-          source: string
-          total_votos: number
-          votos_nulos: number
-        }
-        Insert: {
-          actas?: number
-          created_at?: string
-          election_label: string
-          election_type: string
-          election_year: number
-          ganador?: string | null
-          id?: string
-          lista_nominal?: number
-          no_registrados?: number
-          org_id: string
-          participacion?: number | null
-          partidos?: Json
-          resultados?: Json
-          section_code: string
-          source: string
-          total_votos?: number
-          votos_nulos?: number
-        }
-        Update: {
-          actas?: number
-          created_at?: string
-          election_label?: string
-          election_type?: string
-          election_year?: number
-          ganador?: string | null
-          id?: string
-          lista_nominal?: number
-          no_registrados?: number
-          org_id?: string
-          participacion?: number | null
-          partidos?: Json
-          resultados?: Json
-          section_code?: string
-          source?: string
-          total_votos?: number
-          votos_nulos?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "section_election_results_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -1095,6 +1117,7 @@ export type Database = {
           created_at: string
           engagement: number | null
           excerpt: string | null
+          full_text_analyzed: boolean
           id: string
           language: string | null
           monitor_id: string | null
@@ -1116,6 +1139,7 @@ export type Database = {
           created_at?: string
           engagement?: number | null
           excerpt?: string | null
+          full_text_analyzed?: boolean
           id?: string
           language?: string | null
           monitor_id?: string | null
@@ -1137,6 +1161,7 @@ export type Database = {
           created_at?: string
           engagement?: number | null
           excerpt?: string | null
+          full_text_analyzed?: boolean
           id?: string
           language?: string | null
           monitor_id?: string | null
@@ -1443,12 +1468,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1472,11 +1497,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1497,11 +1522,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1522,11 +1547,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1539,11 +1564,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
