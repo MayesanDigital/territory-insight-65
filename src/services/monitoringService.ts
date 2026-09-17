@@ -27,6 +27,8 @@ export interface IngestResult {
     blocked: Array<"facebook" | "instagram">;
     failures: Array<{ red: string; motivo: string }>;
   };
+  /** Escritura propuesta cuando el término buscado casi no dio resultados. */
+  suggestion?: { termino: string; apariciones: number } | null;
   errors: Array<{ url: string; message: string }>;
 }
 

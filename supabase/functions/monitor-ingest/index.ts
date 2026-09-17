@@ -33,6 +33,7 @@ import {
 } from "../_shared/rss.ts";
 import { readMany, snippetAround } from "../_shared/reader.ts";
 import { buscaEnRedes } from "../_shared/social.ts";
+import { sugiereTermino } from "../_shared/sugerencia.ts";
 
 const USER_AGENT =
   Deno.env.get("MONITORING_USER_AGENT") ??
@@ -276,6 +277,14 @@ Deno.serve(async (req) => {
     .sort((a, b) => b.relevance - a.relevance)
     .slice(0, MAX_ITEMS_PER_RUN);
 
+  // --- ESCRITURA DEL NOMBRE
+  // Con pocas menciones, lo más probable no es que no se hable de la persona,
+  // sino que el nombre esté mal escrito: "aridna montiel" devolvía 4 menciones y
+  // "Ariadna Montiel", 93. Las fuentes traían sus titulares, pero el filtro los
+  // descartaba. Se propone la escritura que aparece en esos titulares.
+  const sugerencia =
+    deduped.length < 10 ? sugiereTermino(monitor.query, collected.map((c) => c.title)) : null;
+
   // --- LECTURA DEL TEXTO COMPLETO
   // Solo las notas más relevantes y con enlace real. Sin clave de Jina el límite
   // es de 20 lecturas por minuto: leerlas todas haría esperar varios minutos.
@@ -425,6 +434,7 @@ Deno.serve(async (req) => {
     items_new: inserted,
     total_mentions: total ?? 0,
     topics: topics.map((t) => t.topic),
+    suggestion: sugerencia,
     // Qué se pudo traer de cada red y qué no: sin esto, cero menciones de
     // Instagram parece "no se habla de él" cuando puede ser un bloqueo.
     social: {

@@ -48,6 +48,21 @@ export function MonitorSearch({ onMonitorReady, disabled }: Props) {
       qc.invalidateQueries({ queryKey: ["monitors"] });
       qc.invalidateQueries({ queryKey: ["mentions"] });
 
+      // Nombre probablemente mal escrito. Se avisa antes que cualquier otra
+      // cosa: es la diferencia entre 4 menciones y 93, y sin el aviso el
+      // resultado se lee como que no se habla de esa persona.
+      const sugerido = result.suggestion?.termino;
+      if (sugerido) {
+        toast.warning(`¿Buscabas «${sugerido}»?`, {
+          description: `Así aparece en ${result.suggestion?.apariciones} titulares de las fuentes. Con esa escritura salen muchas más menciones.`,
+          duration: 20000,
+          action: {
+            label: `Buscar «${sugerido}»`,
+            onClick: () => search.mutate(sugerido),
+          },
+        });
+      }
+
       if (result.status === "error") {
         toast.error("No se pudo consultar ninguna fuente");
       } else if (result.items_new === 0 && result.total_mentions > 0) {
