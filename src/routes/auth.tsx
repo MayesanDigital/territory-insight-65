@@ -47,6 +47,27 @@ function AuthPage() {
     navigate({ to: "/dashboard" });
   };
 
+  /**
+   * Envía el correo de recuperación.
+   *
+   * No dice si la dirección existe: responder "esa cuenta no existe" permitiría
+   * averiguar quién tiene acceso al sistema probando correos.
+   */
+  const recuperar = async () => {
+    if (!email.trim()) {
+      toast.error("Escribe tu correo y vuelve a tocar el enlace.");
+      return;
+    }
+    setLoading(true);
+    await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/recuperar`,
+    });
+    setLoading(false);
+    toast.success("Si esa cuenta existe, te llegará un correo para cambiar la contraseña.", {
+      duration: 8000,
+    });
+  };
+
   const signUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -118,6 +139,13 @@ function AuthPage() {
                   <Button type="submit" className="w-full" disabled={loading}>
                     {loading ? "Entrando…" : "Entrar"}
                   </Button>
+                  <button
+                    type="button"
+                    onClick={recuperar}
+                    className="w-full text-center text-xs text-muted-foreground underline-offset-2 hover:underline"
+                  >
+                    ¿Olvidaste tu contraseña?
+                  </button>
                 </form>
               </TabsContent>
 
