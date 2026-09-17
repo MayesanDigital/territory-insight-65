@@ -218,7 +218,7 @@ function popupHtml(
         <div style="display:flex;justify-content:space-between;font-size:12px">
           <span style="display:flex;align-items:center;gap:5px">
             <span style="width:8px;height:8px;border-radius:50%;background:#7A4E23;display:inline-block"></span>
-            Fidelizados
+            Promovidos
           </span>
           <b>${fmt(contacts.fidelizado)}</b>
         </div>

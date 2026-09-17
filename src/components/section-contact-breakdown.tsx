@@ -123,7 +123,7 @@ export function SectionContactBreakdown({
       )}
 
       <div className="grid grid-cols-2 gap-2">
-        <Cifra valor={counts.fidelizado} etiqueta="Fidelizados" color={COLOR.fidelizado} />
+        <Cifra valor={counts.fidelizado} etiqueta="Promovidos" color={COLOR.fidelizado} />
         <Cifra valor={counts.seguro} etiqueta="Seguros" color={COLOR.seguro} />
       </div>
 
@@ -146,7 +146,7 @@ export function SectionContactBreakdown({
               que falta. Comparar segmentos entre sí se lee mejor que cuatro
               barras sueltas. */}
           <div className="flex h-3 w-full overflow-hidden rounded-full bg-background">
-            <Segmento pct={avance.pctFidelizados} color={COLOR.fidelizado} titulo="Fidelizados" />
+            <Segmento pct={avance.pctFidelizados} color={COLOR.fidelizado} titulo="Promovidos" />
             <Segmento pct={avance.pctSeguros} color={COLOR.seguro} titulo="Seguros" />
             <Segmento
               pct={avance.pctSinCategoria}
@@ -159,7 +159,7 @@ export function SectionContactBreakdown({
           <div className="mt-2 space-y-0.5">
             <Linea
               color={COLOR.fidelizado}
-              etiqueta="Fidelizados"
+              etiqueta="Promovidos"
               valor={avance.fidelizados}
               pct={avance.pctFidelizados}
             />

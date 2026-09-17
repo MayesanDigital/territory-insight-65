@@ -38,7 +38,7 @@ export const GENEROS = ["femenino", "masculino", "no_especificado"] as const;
 export const CATEGORIAS = ["fidelizado", "seguro"] as const;
 
 export const CATEGORIA_ETIQUETA: Record<(typeof CATEGORIAS)[number], string> = {
-  fidelizado: "Fidelizado",
+  fidelizado: "Promovido",
   seguro: "Seguro",
 };
 

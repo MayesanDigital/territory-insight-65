@@ -224,7 +224,7 @@ function ContactosPage() {
           subtitle: descripcionFiltros.length ? descripcionFiltros.join(" · ") : "Todos los contactos",
           kpis: [
             { label: "Contactos", value: rows.length.toLocaleString("es-MX") },
-            { label: "Fidelizados", value: fidelizados.toLocaleString("es-MX") },
+            { label: "Promovidos", value: fidelizados.toLocaleString("es-MX") },
             { label: "Seguros", value: seguros.toLocaleString("es-MX") },
             { label: "Secciones", value: String(porSeccion.size) },
           ],
