@@ -87,6 +87,8 @@ export interface ResultadoProceso {
   votos: number;
   porcentaje: number;
   gano: boolean;
+  /** Falso si el partido no tuvo candidatura, ni propia ni en coalición, en esa sección. */
+  compitio: boolean;
   ganador: string | null;
   totalVotos: number;
   listaNominal: number;
@@ -150,6 +152,8 @@ function fuerzaDelPartido(resultados: Fuerza[], siglas: string): Fuerza | null {
 }
 
 function clasifica(procesos: ResultadoProceso[], totalProcesos: number): Clasificacion {
+  // `procesos` trae una entrada por elección con resultados en la sección, haya
+  // competido o no el partido: no presentar candidatura cuenta como no ganar.
   if (procesos.length < totalProcesos || procesos.length === 0) return "sin_historial";
 
   const ganados = procesos.filter((p) => p.gano).length;
@@ -175,7 +179,11 @@ function observacionDe(
   tendencia: number | null,
   margen: number | null,
   listaNominal: number,
+  compitioUltima: boolean,
 ): string {
+  if (!compitioUltima && clasificacion !== "sin_historial") {
+    return "No tuvo candidatura, propia ni en coalición, en la última elección de esta sección.";
+  }
   const caida = tendencia !== null && tendencia < 0 ? Math.abs(tendencia) : 0;
   const peso = listaNominal >= 2000 ? "Sección de alto padrón: " : "";
 
@@ -278,6 +286,8 @@ export const strategyService = {
       ).values(),
     ].sort((a, b) => a.año - b.año);
 
+    const añoReciente = procesosDisponibles[procesosDisponibles.length - 1]?.año ?? null;
+
     const porClave = new Map<string, FilaResultado[]>();
     for (const f of filas) {
       const lista = porClave.get(f.section_code) ?? [];
@@ -293,42 +303,49 @@ export const strategyService = {
     for (const [clave, unidad] of porSeccion) {
       const propias = (porClave.get(clave) ?? []).sort((a, b) => a.election_year - b.election_year);
 
-      const procesos: ResultadoProceso[] = [];
-      for (const fila of propias) {
+      // Una entrada por elección con resultados en la sección. Antes se saltaban
+      // las elecciones en que el partido no compitió, y entonces su "último
+      // proceso" podía ser 2021 en unas secciones y 2024 en otras: los totales
+      // mezclaban años y el margen comparaba el % de 2021 con el ganador de 2024.
+      const procesos: ResultadoProceso[] = propias.map((fila) => {
         const fuerzas = (fila.resultados as Fuerza[]) ?? [];
         const mia = fuerzaDelPartido(fuerzas, partido);
-        if (!mia) continue;
-
-        procesos.push({
+        return {
           etiqueta: fila.election_label,
           año: fila.election_year,
-          votos: mia.votos,
-          porcentaje: mia.porcentaje,
-          gano: fuerzas[0]?.etiqueta === mia.etiqueta,
+          votos: mia?.votos ?? 0,
+          porcentaje: mia?.porcentaje ?? 0,
+          gano: !!mia && fuerzas[0]?.etiqueta === mia.etiqueta,
+          compitio: !!mia,
           ganador: fila.ganador,
           totalVotos: fila.total_votos,
           listaNominal: fila.lista_nominal,
           participacion: fila.participacion,
-          coaligadoCon: (mia.partidos ?? []).filter((p) => p !== partido),
-        });
-      }
+          coaligadoCon: (mia?.partidos ?? []).filter((p) => p !== partido),
+        };
+      });
 
       const ultimo = procesos[procesos.length - 1];
       const primero = procesos[0];
+      // Solo la elección más reciente del conjunto suma a los totales, para que
+      // "Votos emitidos 2024" sea exactamente eso en todas las secciones.
+      const ultimoVigente = ultimo && ultimo.año === añoReciente ? ultimo : undefined;
 
-      if (ultimo) {
-        listaNominal += ultimo.listaNominal;
-        votosEmitidos += ultimo.totalVotos;
-        votosPartido += ultimo.votos;
+      if (ultimoVigente) {
+        listaNominal += ultimoVigente.listaNominal;
+        votosEmitidos += ultimoVigente.totalVotos;
+        votosPartido += ultimoVigente.votos;
       }
 
+      // La tendencia solo tiene sentido si compitió en ambos extremos: medirla
+      // desde un 0 por no haber tenido candidatura inventaría una caída o subida.
       const tendencia =
-        procesos.length >= 2
+        procesos.length >= 2 && primero!.compitio && ultimo!.compitio
           ? Math.round((ultimo!.porcentaje - primero!.porcentaje) * 10) / 10
           : null;
       const ganadorPct = fuerzaGanadora(propias);
       const margen =
-        ultimo && ganadorPct !== null
+        ultimo?.compitio && ganadorPct !== null
           ? Math.round((ultimo.porcentaje - ganadorPct) * 10) / 10
           : null;
       const clasificacion = clasifica(procesos, procesosDisponibles.length);
@@ -337,14 +354,20 @@ export const strategyService = {
         seccion: clave,
         colonia: unidad.localidad || unidad.municipio,
         tipo: unidad.section_type,
-        listaNominal: ultimo?.listaNominal ?? 0,
+        listaNominal: ultimoVigente?.listaNominal ?? 0,
         poblacion: unidad.population,
         clasificacion,
         procesos,
         tendencia,
         rival: ultimo && !ultimo.gano ? ultimo.ganador : null,
         margen,
-        observacion: observacionDe(clasificacion, tendencia, margen, ultimo?.listaNominal ?? 0),
+        observacion: observacionDe(
+          clasificacion,
+          tendencia,
+          margen,
+          ultimoVigente?.listaNominal ?? 0,
+          ultimo?.compitio ?? true,
+        ),
       });
     }
 

@@ -91,6 +91,25 @@ Las elecciones municipales sirven de contraste cruzado: su participación debe p
 a la del proceso hermano del mismo año, y así sale — 50.68 % en 2021 frente al 50.86 %
 de la gubernatura, y 59.44 % en 2024 frente al 60.74 % de la presidencial.
 
+### Verificación contra la fuente (2026-09-17)
+
+Se volvió a descargar cada archivo y se comparó contra la base y contra el análisis
+estratégico, recalculando directo del XLSX sin pasar por el ETL: 522 combinaciones
+municipio × partido y 31,554 celdas sección × año, sin diferencias. Esa revisión
+corrigió tres fallos del ETL:
+
+- **Candidaturas independientes 2021** (`CAND_IND_*`, `PL_*`) no se leían: faltaban
+  1,900 votos y la sección 0797 de Luis Moya aparecía ganada por el PVEM cuando la
+  ganó la independiente. En Guadalupe `CAND_IND_3` duplica a `CAND_IND_2` y se descarta.
+- **Coaliciones por sección en vez de por municipio**: la misma alianza salía como
+  "PRI", "PRD-PRI" o "PAN-PRD-PRI" según la sección (159 casos).
+- **Gubernatura**: la coalición es estatal; detectarla por municipio separaba a
+  PAN, PRI y PRD en 13 secciones.
+
+Quedan 97 secciones de Guadalupe (ayuntamiento 2021) donde la suma de votos no
+coincide con el total del acta por 1 a 8 votos. Es un error de captura de la propia
+fuente del IEEZ; se conserva el total oficial.
+
 ### Cobertura
 
 | Proceso | Secciones |

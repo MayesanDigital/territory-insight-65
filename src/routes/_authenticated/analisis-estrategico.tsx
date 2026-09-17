@@ -402,7 +402,9 @@ function TablaGrupo({
                     const r = s.procesos.find((x) => x.año === p.año);
                     return (
                       <td key={p.año} className="px-4 py-2 text-right tabular-nums">
-                        {r ? (
+                        {r && !r.compitio ? (
+                          <span className="text-xs text-muted-foreground">no compitió</span>
+                        ) : r ? (
                           <span className={r.gano ? "font-medium text-emerald-700" : ""}>
                             {fmt(r.votos)}
                             <span className="ml-1 text-xs text-muted-foreground">
@@ -524,8 +526,8 @@ function filasPlanas(datos: AnalisisEstrategico) {
     };
     for (const p of datos.procesos) {
       const r = s.procesos.find((x) => x.año === p.año);
-      fila[`Votos ${p.año}`] = r?.votos ?? "";
-      fila[`% ${p.año}`] = r?.porcentaje ?? "";
+      fila[`Votos ${p.año}`] = r ? (r.compitio ? r.votos : "No compitio") : "";
+      fila[`% ${p.año}`] = r?.compitio ? r.porcentaje : "";
       fila[`Gano ${p.año}`] = r ? (r.gano ? "Si" : "No") : "";
     }
     fila["Tendencia (pts)"] = s.tendencia ?? "";

@@ -52,6 +52,12 @@ COMBOS_2021 = ["PAN-PRI-PRD", "PAN-PRI", "PAN-PRD", "PRI-PRD",
                "PVEM-MORENA-NAZ", "PT-PVEM", "PT-MORENA", "PT-NAZ", "PVEM-MORENA",
                "PVEM-NAZ", "MORENA-NAZ"]
 
+# Candidaturas independientes y partidos locales sin siglas fijas. El IEEZ las
+# publica en columnas genéricas que cambian de titular en cada municipio. Omitirlas
+# dejaba fuera 1,900 votos de 2021 y le quitaba la sección 0797 (Luis Moya) a la
+# independiente que la ganó.
+EXTRAS_2021 = ["PL_1", "PL_2", "PL_X", "CAND_IND_1", "CAND_IND_2", "CAND_IND_3", "CAND_IND_X"]
+
 PARTIDOS_AYU_2024 = ["PAN", "PRI", "PRD", "PT", "PVEM", "MC", "MORENA",
                      "NAZ", "PES", "MAZ", "FMZ", "RPZ"]
 COMBOS_AYU_2024 = ["PVEM_MORENA", "PT_NAZ_PES", "PT_NAZ", "PT_PES", "NAZ_PES",
@@ -70,6 +76,9 @@ NOMBRE = {
     "ES": "Encuentro Solidario", "PAZ": "PAZ", "MD": "MD", "PP": "PP",
     "FAM": "Fuerza por México", "PES": "PES", "RSP": "Redes Sociales",
     "FXM": "Fuerza por México", "MAZ": "MAZ", "FMZ": "FMZ", "RPZ": "RPZ",
+    "CAND_IND_1": "Independiente", "CAND_IND_2": "Independiente",
+    "CAND_IND_3": "Independiente", "CAND_IND_X": "Independiente",
+    "PL_1": "Partido local", "PL_2": "Partido local", "PL_X": "Partido local",
 }
 
 
@@ -150,6 +159,16 @@ def construye_fuerzas(votos_partido, votos_combo, coaliciones):
         acumulado[g] += v
         integrantes[g].update(ms)
 
+    # La coalición es del municipio, no de la sección. Si en una sección el PAN no
+    # sacó votos propios pero su alianza sí (vía PRI o PRD), el bloque debe seguir
+    # llamándose igual y seguir incluyendo al PAN. Antes se armaba solo con los
+    # partidos que tuvieron votos en esa sección, y la misma alianza aparecía como
+    # "PRI" en una sección y "PRD-PRI" en la de al lado dentro del mismo municipio.
+    for miembro in list(coaliciones.padre):
+        g = coaliciones.grupo(miembro)
+        if g in integrantes:
+            integrantes[g].add(miembro)
+
     fuerzas = []
     for g, v in acumulado.items():
         partes = sorted(integrantes[g])
@@ -165,7 +184,12 @@ def construye_fuerzas(votos_partido, votos_combo, coaliciones):
 
 
 def lee_xlsx_ieez(ruta, hoja, partidos, combos, salto, c_muni, c_secc,
-                  c_lista, c_total, c_nulos, c_noreg):
+                  c_lista, c_total, c_nulos, c_noreg, extras=(), estatal=False):
+    """
+    `estatal`: la coalición se pactó para todo el estado (gubernatura). Se detecta
+    con todas las casillas a la vez; por municipio, uno donde nadie marcó la
+    combinación dejaba a esos partidos como si hubieran competido por separado.
+    """
     wb = openpyxl.load_workbook(ruta, read_only=True, data_only=True)
     ws = wb[hoja]
     filas = list(ws.iter_rows(values_only=True))
@@ -183,6 +207,8 @@ def lee_xlsx_ieez(ruta, hoja, partidos, combos, salto, c_muni, c_secc,
 
     # Primera pasada: qué combinaciones tuvieron votos en cada municipio.
     combos_activos = defaultdict(set)
+    extras = [e for e in extras if norm(e) in idx]
+    valores_extra = defaultdict(lambda: defaultdict(list))
     datos = []
     for fila in filas:
         if i_secc is None or i_secc >= len(fila) or fila[i_secc] in (None, ""):
@@ -193,9 +219,30 @@ def lee_xlsx_ieez(ruta, hoja, partidos, combos, salto, c_muni, c_secc,
             continue
         muni = str(fila[i_muni] or "").strip().upper() if i_muni is not None else ""
         datos.append((muni, secc, fila))
+        for e in extras:
+            valores_extra[muni][e].append(num(fila, e))
         for combo in combos:
             if num(fila, combo) > 0:
                 combos_activos[muni].add(combo)
+
+    # En Guadalupe 2021 la columna CAND_IND_3 repite, casilla por casilla, la de
+    # CAND_IND_2: es la misma candidatura duplicada. Sumar ambas contaba dos veces
+    # esos votos y descuadraba el total del acta. Se descarta la columna que copia
+    # exactamente a otra anterior en todo el municipio.
+    extras_validas = {}
+    for muni, columnas in valores_extra.items():
+        vistas, validas = [], []
+        for e in extras:
+            vals = columnas[e]
+            if not any(vals) or any(vals == v for v in vistas):
+                continue
+            vistas.append(vals)
+            validas.append(e)
+        extras_validas[muni] = validas
+
+    if estatal:
+        todos = set().union(*combos_activos.values()) if combos_activos else set()
+        combos_activos = {m: todos for m in {d[0] for d in datos}}
 
     alianzas = {}
     for muni, activos in combos_activos.items():
@@ -222,6 +269,8 @@ def lee_xlsx_ieez(ruta, hoja, partidos, combos, salto, c_muni, c_secc,
         s["no_registrados"] += num(fila, c_noreg)
         for p in partidos:
             s["partidos"][ALIAS.get(norm(p), norm(p))] += num(fila, p)
+        for e in extras_validas.get(muni, []):
+            s["partidos"][norm(e)] += num(fila, e)
         for combo in combos:
             v = num(fila, combo)
             if v:
@@ -346,13 +395,13 @@ def main():
         (lambda: lee_xlsx_ieez(datos / "computo2021.xlsx", "20210720_1830_COMP_AYU_Zac",
                                PARTIDOS_2021, COMBOS_2021, 1, "MUNICIPIO_LOCAL",
                                "SECCION", "LISTA_NOMINAL_CASILLA", "TOTAL_VOTOS",
-                               "NUM_VOTOS_NULOS", "NO_REGISTRADOS"),
+                               "NUM_VOTOS_NULOS", "NO_REGISTRADOS", EXTRAS_2021),
          2021, "ayuntamiento", "Ayuntamiento 2021",
          "IEEZ · Cómputo Proceso Electoral Local 2020-2021"),
         (lambda: lee_xlsx_ieez(datos / "computo2021.xlsx", "20210720_1830_COMP_GOB_Zac",
                                PARTIDOS_2021, COMBOS_2021, 1, "MUNICIPIO_LOCAL",
                                "SECCION", "LISTA_NOMINAL_CASILLA", "TOTAL_VOTOS",
-                               "NUM_VOTOS_NULOS", "NO_REGISTRADOS"),
+                               "NUM_VOTOS_NULOS", "NO_REGISTRADOS", EXTRAS_2021, estatal=True),
          2021, "gubernatura", "Gubernatura 2021",
          "IEEZ · Cómputo Proceso Electoral Local 2020-2021"),
         (lambda: lee_presidencial(sorted(datos.glob("pres2024_32_*.json")),
