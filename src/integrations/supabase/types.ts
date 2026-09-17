@@ -589,6 +589,65 @@ export type Database = {
           },
         ]
       }
+      municipal_poverty: {
+        Row: {
+          created_at: string
+          extreme_poverty_pct: number
+          extreme_poverty_people: number
+          id: string
+          moderate_poverty_pct: number | null
+          municipio: string
+          municipio_code: string | null
+          municipio_key: string
+          org_id: string
+          population: number
+          poverty_pct: number
+          poverty_people: number
+          source: string
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          extreme_poverty_pct: number
+          extreme_poverty_people?: number
+          id?: string
+          moderate_poverty_pct?: number | null
+          municipio: string
+          municipio_code?: string | null
+          municipio_key: string
+          org_id: string
+          population?: number
+          poverty_pct: number
+          poverty_people?: number
+          source?: string
+          year?: number
+        }
+        Update: {
+          created_at?: string
+          extreme_poverty_pct?: number
+          extreme_poverty_people?: number
+          id?: string
+          moderate_poverty_pct?: number | null
+          municipio?: string
+          municipio_code?: string | null
+          municipio_key?: string
+          org_id?: string
+          population?: number
+          poverty_pct?: number
+          poverty_people?: number
+          source?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "municipal_poverty_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_invitations: {
         Row: {
           accepted_at: string | null
@@ -826,6 +885,59 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "section_goals_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      section_marginacion: {
+        Row: {
+          created_at: string
+          dp2: number
+          grade: string
+          id: string
+          index_value: number
+          indicators: Json
+          org_id: string
+          population: number
+          section_code: string
+          source: string
+          state_rank: number
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          dp2: number
+          grade: string
+          id?: string
+          index_value: number
+          indicators?: Json
+          org_id: string
+          population?: number
+          section_code: string
+          source?: string
+          state_rank: number
+          year?: number
+        }
+        Update: {
+          created_at?: string
+          dp2?: number
+          grade?: string
+          id?: string
+          index_value?: number
+          indicators?: Json
+          org_id?: string
+          population?: number
+          section_code?: string
+          source?: string
+          state_rank?: number
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "section_marginacion_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"

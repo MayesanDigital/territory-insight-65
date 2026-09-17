@@ -180,3 +180,9 @@
    */
   isolation: isolate;
 }
+
+/* Base de OpenStreetMap atenuada: sin esto sus verdes y amarillos compiten con
+   los colores de las capas temáticas. */
+.mapa-base-atenuado {
+  filter: grayscale(0.85) sepia(0.12) brightness(1.04) contrast(0.92);
+}

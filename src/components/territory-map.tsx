@@ -5,8 +5,14 @@ import "leaflet/dist/leaflet.css";
 import type { Json } from "@/integrations/supabase/types";
 import { CENSUS_DISPLAY_LABEL, type TerritorialUnit } from "@/types";
 import type { GanadorSeccion } from "@/services/electionsService";
+import {
+  GRADO_COLOR,
+  GRADO_ETIQUETA,
+  GRADOS_POBREZA,
+  type PobrezaSeccion,
+} from "@/services/povertyService";
 
-export type MapMetric = "population" | "contacts" | "coverage" | "density";
+export type MapMetric = "population" | "contacts" | "coverage" | "density" | "poverty";
 
 /**
  * Contactos de una sección, desglosados por categoría de seguimiento.
@@ -35,7 +41,14 @@ interface Props {
   /** Meta de contactos fijada por la campaña, por clave de sección. */
   goals?: Record<string, number>;
   metric: MapMetric;
+  /** Índice de pobreza por clave de sección; colorea la capa "poverty". */
+  poverty?: Record<string, PobrezaSeccion>;
   selectedId?: string | null;
+  /**
+   * Pide centrar el mapa en una sección y abrir su ficha. `n` cambia en cada
+   * petición para que elegir otra vez la misma sección vuelva a centrarla.
+   */
+  focusRequest?: { id: string; n: number } | null;
   onSelect: (unit: TerritorialUnit) => void;
   /** Abre el alta de contacto ya situada en esta sección. */
   onAddContact?: (unit: TerritorialUnit) => void;
@@ -45,6 +58,8 @@ interface Props {
 
 const SCALE = ["#F1E7D8", "#E0C89B", "#C79E5E", "#A8763E", "#7A4E23"];
 const SELECTED = "#7A2E2E";
+const SIN_DATO = "#D6D3CE";
+const SIN_POBREZA: Record<string, PobrezaSeccion> = {};
 const BORDER = "#8b7a5f";
 
 function metricValue(u: TerritorialUnit, contacts: number, metric: MapMetric) {
@@ -57,6 +72,8 @@ function metricValue(u: TerritorialUnit, contacts: number, metric: MapMetric) {
       return u.population ? (contacts / u.population) * 100 : 0;
     case "density":
       return u.households ? (u.population ?? 0) / u.households : 0;
+    case "poverty":
+      return 0; // Se colorea por grado, no por escala continua.
   }
 }
 
@@ -90,9 +107,10 @@ function buildPopup(
   canAdd: boolean,
   winner?: GanadorSeccion,
   goal?: number,
+  pobreza?: PobrezaSeccion,
 ): HTMLElement {
   const el = document.createElement("div");
-  el.innerHTML = popupHtml(u, contacts, winner, goal);
+  el.innerHTML = popupHtml(u, contacts, winner, goal, pobreza);
 
   if (onAdd && canAdd) {
     const button = document.createElement("button");
@@ -126,6 +144,7 @@ function popupHtml(
   contacts: SectionContacts,
   winner?: GanadorSeccion,
   goal?: number,
+  pobreza?: PobrezaSeccion,
 ) {
   const total = u.population ?? 0;
   const cobertura = total > 0 ? ((contacts.total / total) * 100).toFixed(2) : "0.00";
@@ -211,6 +230,17 @@ function popupHtml(
       <div style="display:flex;justify-content:space-between;font-size:12px">
         <span>Hogares</span><b>${fmt(u.households)}</b>
       </div>
+      ${
+        pobreza
+          ? `<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px">
+               <span>Nivel de pobreza</span>
+               <b style="display:flex;align-items:center;gap:5px">
+                 <span style="width:9px;height:9px;border-radius:2px;background:${GRADO_COLOR[pobreza.grado]};border:1px solid #0002;display:inline-block"></span>
+                 ${GRADO_ETIQUETA[pobreza.grado]} <span style="opacity:.6;font-weight:500">#${fmt(pobreza.lugar)}</span>
+               </b>
+             </div>`
+          : ""
+      }
       <div style="display:flex;justify-content:space-between;font-size:12px">
         <span>Contactos</span><b>${contacts.total} <span style="opacity:.6">(${cobertura}%)</span></b>
       </div>
@@ -251,7 +281,9 @@ export default function TerritoryMap({
   winners = {},
   goals = {},
   metric,
+  poverty = SIN_POBREZA,
   selectedId,
+  focusRequest,
   onSelect,
   onAddContact,
   canAddContact = false,
@@ -291,6 +323,8 @@ export default function TerritoryMap({
   winnersRef.current = winners;
   const goalsRef = useRef(goals);
   goalsRef.current = goals;
+  const povertyRef = useRef(poverty);
+  povertyRef.current = poverty;
 
   /**
    * Sección cuyo popup está abierto. Al guardar un contacto cambian los
@@ -321,9 +355,13 @@ export default function TerritoryMap({
       [22.77, -102.58],
       8,
     );
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-      attribution: "&copy; OpenStreetMap &copy; CARTO",
+    // CARTO empezó a exigir clave y sus teselas salían marcadas con "API KEY
+    // REQUIRED". Las de OpenStreetMap no piden clave; se atenúan por CSS para
+    // que los colores de las capas sigan siendo lo que resalta.
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       maxZoom: 19,
+      className: "mapa-base-atenuado",
     }).addTo(map);
     layerRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
@@ -352,7 +390,13 @@ export default function TerritoryMap({
       const contacts = contactCounts[u.section_code] ?? SIN_CONTACTOS;
       const value = values[i] ?? 0;
       const idx = Math.min(SCALE.length - 1, Math.floor((value / max) * SCALE.length));
-      const color = SCALE[idx] ?? SCALE[0]!;
+      const nivel = poverty[u.section_code];
+      const color =
+        metric === "poverty"
+          ? nivel
+            ? GRADO_COLOR[nivel.grado]
+            : SIN_DATO
+          : (SCALE[idx] ?? SCALE[0]!);
       const content = () =>
         buildPopup(
           u,
@@ -361,6 +405,7 @@ export default function TerritoryMap({
           canAddContact,
           winnersRef.current[u.section_code],
           goalsRef.current[u.section_code],
+          povertyRef.current[u.section_code],
         );
 
       const track = (l: L.Layer) => {
@@ -416,7 +461,7 @@ export default function TerritoryMap({
       const owner = popupOwnersRef.current.get(reopen);
       if (owner) owner.openPopup();
     }
-  }, [units, geometryById, contactCounts, metric, max, values, fitKey, canAddContact]);
+  }, [units, geometryById, contactCounts, metric, poverty, max, values, fitKey, canAddContact]);
 
   // --- Resaltar. Solo cambia el estilo; nunca redibuja ni mueve la vista. ---
   useEffect(() => {
@@ -427,22 +472,66 @@ export default function TerritoryMap({
     }
   }, [selectedId, units, geometryById]);
 
+  // --- Centrar en la sección pedida desde el filtro de pobreza. ---
+  // Corre después del dibujo, así que prevalece sobre el encuadre del municipio.
+  // Se repite cuando llegan los polígonos para cambiar el punto por el contorno.
+  const focusedRef = useRef<string>("");
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !focusRequest) return;
+    const shape = shapesRef.current.get(focusRequest.id) as unknown as
+      | (L.Layer & { getBounds?: () => L.LatLngBounds; getLatLng?: () => L.LatLng })
+      | undefined;
+    if (!shape) return;
+    const esPoligono = typeof shape.getBounds === "function";
+    const clave = `${focusRequest.n}|${esPoligono}`;
+    if (focusedRef.current === clave) return;
+    focusedRef.current = clave;
+    if (esPoligono) {
+      const b = shape.getBounds!();
+      if (b.isValid()) map.fitBounds(b.pad(0.6), { maxZoom: 15 });
+    } else if (shape.getLatLng) {
+      map.setView(shape.getLatLng(), 13);
+    }
+    popupOwnersRef.current.get(focusRequest.id)?.openPopup();
+  }, [focusRequest, units, geometryById, metric, poverty]);
+
   return (
     // `isolate` mantiene todo el apilamiento del mapa —capas de Leaflet y esta
     // leyenda— dentro de su propio contexto, para que no tape los diálogos.
     <div className="relative isolate h-full w-full overflow-hidden rounded-lg border border-border">
       <div ref={containerRef} className="h-full w-full" />
       <div className="pointer-events-none absolute bottom-3 left-3 z-10 rounded-md border border-border bg-card/95 p-3 text-xs shadow-sm">
-        <p className="mb-2 font-medium uppercase tracking-wider">Escala</p>
-        <div className="flex items-center gap-1">
-          {SCALE.map((c) => (
-            <span key={c} className="h-3 w-6" style={{ backgroundColor: c }} />
-          ))}
-        </div>
-        <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
-          <span>0</span>
-          <span>{max.toLocaleString("es-MX", { maximumFractionDigits: 1 })}</span>
-        </div>
+        {metric === "poverty" ? (
+          <>
+            <p className="mb-2 font-medium uppercase tracking-wider">Nivel de pobreza</p>
+            <div className="space-y-1">
+              {GRADOS_POBREZA.map((g) => (
+                <div key={g} className="flex items-center gap-2">
+                  <span className="h-3 w-5 border border-black/10" style={{ backgroundColor: GRADO_COLOR[g] }} />
+                  <span>{GRADO_ETIQUETA[g]}</span>
+                </div>
+              ))}
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <span className="h-3 w-5" style={{ backgroundColor: SIN_DATO }} />
+                <span>Sin dato</span>
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="mb-2 font-medium uppercase tracking-wider">Escala</p>
+            <div className="flex items-center gap-1">
+              {SCALE.map((c) => (
+                <span key={c} className="h-3 w-6" style={{ backgroundColor: c }} />
+              ))}
+            </div>
+            <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
+              <span>0</span>
+              <span>{max.toLocaleString("es-MX", { maximumFractionDigits: 1 })}</span>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

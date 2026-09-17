@@ -22,10 +22,13 @@ import { ContactFormDialog } from "@/components/contact-form-dialog";
 import { SectionElectionComparison } from "@/components/section-election-comparison";
 import { SectionContactBreakdown } from "@/components/section-contact-breakdown";
 import { SectionTeamBreakdown } from "@/components/section-team-breakdown";
+import { PovertySectionFilter } from "@/components/poverty-section-filter";
+import { SectionPovertyDetail } from "@/components/section-poverty-detail";
 import { territoryService } from "@/services/territoryService";
 import { contactsService } from "@/services/contactsService";
 import { electionsService } from "@/services/electionsService";
 import { campaignService } from "@/services/campaignService";
+import { claveMunicipio, povertyService, type PobrezaSeccion } from "@/services/povertyService";
 import { useAuth } from "@/hooks/useAuth";
 import { CENSUS_DISPLAY_LABEL, type TerritorialUnit, type TerritorialUnitDetailed } from "@/types";
 import type { MapMetric, SectionContacts } from "@/components/territory-map";
@@ -57,6 +60,7 @@ const METRICS: Array<{ value: MapMetric; label: string }> = [
   { value: "contacts", label: "Contactos registrados" },
   { value: "coverage", label: "Cobertura (%)" },
   { value: "density", label: "Personas por hogar" },
+  { value: "poverty", label: "Nivel de pobreza" },
 ];
 
 function MapaPage() {
@@ -66,6 +70,8 @@ function MapaPage() {
   const [selected, setSelected] = useState<TerritorialUnit | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [formUnit, setFormUnit] = useState<TerritorialUnit | null>(null);
+  const [seccionPobreza, setSeccionPobreza] = useState<string | null>(null);
+  const [focusRequest, setFocusRequest] = useState<{ id: string; n: number } | null>(null);
   const { canAdmin } = useAuth();
 
   // Registrar desde el mapa ahorra teclear sección y municipio, que es
@@ -133,6 +139,54 @@ function MapaPage() {
     queryFn: () => campaignService.listGoals(),
   });
 
+  // Índice de pobreza por sección (ya viene de la más pobre a la menos) y
+  // pobreza oficial por municipio. Son datos de referencia que no cambian.
+  const pobreza = useQuery({
+    queryKey: ["pobreza", "secciones"],
+    queryFn: () => povertyService.listSecciones(),
+    staleTime: 60 * 60 * 1000,
+  });
+  const pobrezaMunicipal = useQuery({
+    queryKey: ["pobreza", "municipios"],
+    queryFn: () => povertyService.listMunicipios(),
+    staleTime: 60 * 60 * 1000,
+  });
+
+  const pobrezaPorSeccion = useMemo(() => {
+    const map: Record<string, PobrezaSeccion> = {};
+    for (const p of pobreza.data ?? []) map[p.section_code] = p;
+    return map;
+  }, [pobreza.data]);
+
+  const municipioDe = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const u of units.data ?? []) map[u.section_code] = u.municipio;
+    return map;
+  }, [units.data]);
+
+  // Elegir una sección en el filtro de pobreza acota al municipio (para tener
+  // su polígono), la selecciona, cambia la capa a pobreza y centra el mapa.
+  const elegirSeccionPobreza = useCallback(
+    (code: string | null) => {
+      setSeccionPobreza(code);
+      if (!code) return;
+      const unit = (units.data ?? []).find((u) => u.section_code === code);
+      if (!unit) return;
+      setSearch("");
+      setMunicipio(unit.municipio);
+      setMetric("poverty");
+      setSelected(unit);
+      setFocusRequest((prev) => ({ id: unit.id, n: (prev?.n ?? 0) + 1 }));
+    },
+    [units.data],
+  );
+
+  const cambiarMunicipio = (m: string) => {
+    setMunicipio(m);
+    // La sección elegida por pobreza deja de tener sentido fuera de su municipio.
+    if (seccionPobreza && m !== "todos" && municipioDe[seccionPobreza] !== m) setSeccionPobreza(null);
+  };
+
   const municipios = useMemo(
     () => Array.from(new Set((units.data ?? []).map((u) => u.municipio))).sort(),
     [units.data],
@@ -170,7 +224,7 @@ function MapaPage() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={municipio} onValueChange={setMunicipio}>
+            <Select value={municipio} onValueChange={cambiarMunicipio}>
               <SelectTrigger className="w-[200px]">
                 <SelectValue placeholder="Municipio" />
               </SelectTrigger>
@@ -183,6 +237,14 @@ function MapaPage() {
                 ))}
               </SelectContent>
             </Select>
+            <PovertySectionFilter
+              secciones={pobreza.data ?? []}
+              municipioDe={municipioDe}
+              municipio={municipio}
+              value={seccionPobreza}
+              onChange={elegirSeccionPobreza}
+              loading={pobreza.isLoading || units.isLoading}
+            />
             <Input
               placeholder="Buscar sección…"
               className="w-[180px]"
@@ -234,6 +296,8 @@ function MapaPage() {
                     winners={winners.data ?? {}}
                     goals={goals.data ?? {}}
                     metric={metric}
+                    poverty={pobrezaPorSeccion}
+                    focusRequest={focusRequest}
                     selectedId={selected?.id ?? null}
                     onSelect={setSelected}
                     onAddContact={openForm}
@@ -281,6 +345,12 @@ function MapaPage() {
                         ).toFixed(2)
                       : "0.00"
                   }%`}
+                />
+
+                <SectionPovertyDetail
+                  pobreza={pobrezaPorSeccion[selected.section_code]}
+                  total={pobreza.data?.length ?? 0}
+                  municipal={pobrezaMunicipal.data?.[claveMunicipio(selected.municipio)]}
                 />
 
                 <SectionContactBreakdown
