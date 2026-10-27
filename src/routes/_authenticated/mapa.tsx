@@ -29,9 +29,11 @@ import { contactsService } from "@/services/contactsService";
 import { electionsService } from "@/services/electionsService";
 import { campaignService } from "@/services/campaignService";
 import { claveMunicipio, povertyService, type PobrezaSeccion } from "@/services/povertyService";
+import { colorPartido, PARTIDOS } from "@/services/strategyService";
+import type { ResumenPartido as ResumenPartidoDatos } from "@/services/electionsService";
 import { useAuth } from "@/hooks/useAuth";
 import { CENSUS_DISPLAY_LABEL, type TerritorialUnit, type TerritorialUnitDetailed } from "@/types";
-import type { MapMetric, SectionContacts } from "@/components/territory-map";
+import type { MapHighlight, MapMetric, SectionContacts } from "@/components/territory-map";
 import { SIN_CONTACTOS } from "@/components/territory-map";
 
 const TerritoryMap = lazy(() => import("@/components/territory-map"));
@@ -57,11 +59,19 @@ export const Route = createFileRoute("/_authenticated/mapa")({
 
 const METRICS: Array<{ value: MapMetric; label: string }> = [
   { value: "population", label: "Población" },
+  { value: "nominal", label: "Lista nominal" },
+  { value: "households", label: "Hogares" },
   { value: "contacts", label: "Contactos registrados" },
   { value: "coverage", label: "Cobertura (%)" },
   { value: "density", label: "Personas por hogar" },
   { value: "poverty", label: "Nivel de pobreza" },
 ];
+
+/** Valor del selector de partido cuando no se resalta a ninguno. */
+const SIN_PARTIDO = "__ninguno__";
+
+/** Elección que se compara en el mapa: la municipal más reciente cargada. */
+const ELECCION = { año: 2024, tipo: "ayuntamiento" } as const;
 
 function MapaPage() {
   const [metric, setMetric] = useState<MapMetric>("population");
@@ -71,6 +81,7 @@ function MapaPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [formUnit, setFormUnit] = useState<TerritorialUnit | null>(null);
   const [seccionPobreza, setSeccionPobreza] = useState<string | null>(null);
+  const [partido, setPartido] = useState(SIN_PARTIDO);
   const [focusRequest, setFocusRequest] = useState<{ id: string; n: number } | null>(null);
   const { canAdmin } = useAuth();
 
@@ -137,6 +148,46 @@ function MapaPage() {
   const goals = useQuery({
     queryKey: ["metas"],
     queryFn: () => campaignService.listGoals(),
+  });
+
+  // Lista nominal por sección: es el padrón que llega con cada cómputo, no un
+  // dato del catálogo territorial, así que se toma de la elección más reciente.
+  const listaNominal = useQuery({
+    queryKey: ["lista-nominal", ELECCION.año],
+    queryFn: () => electionsService.listaNominal(ELECCION.año),
+    staleTime: 30 * 60 * 1000,
+  });
+
+  // Secciones que ganó el partido elegido, para pintarlas con su color. Sale de
+  // los mismos ganadores que ya alimentan el popup, así que no cuesta otra
+  // consulta: lo que se compara son las siglas del bloque, no su etiqueta,
+  // porque "PAN-PRD-PRI" y "PAN" son el mismo partido en municipios distintos.
+  const resalte = useMemo<MapHighlight | null>(() => {
+    if (partido === SIN_PARTIDO) return null;
+    const ganadores = winners.data ?? {};
+    const ganadas = new Set<string>();
+    const conResultado = new Set<string>();
+    let etiqueta = `Ayuntamiento ${ELECCION.año}`;
+    for (const [seccion, g] of Object.entries(ganadores)) {
+      conResultado.add(seccion);
+      if (g.etiqueta) etiqueta = g.etiqueta;
+      if (g.partidos?.includes(partido)) ganadas.add(seccion);
+    }
+    return {
+      siglas: partido,
+      nombre: PARTIDOS.find((p) => p.siglas === partido)?.nombre ?? partido,
+      color: colorPartido(partido),
+      etiqueta,
+      ganadas,
+      conResultado,
+    };
+  }, [partido, winners.data]);
+
+  // Secciones ganadas y votos del partido, acotados al municipio elegido.
+  const resumen = useQuery({
+    queryKey: ["resumen-partido", partido, municipio],
+    queryFn: () => electionsService.resumenPartido(partido, ELECCION.tipo, municipio),
+    enabled: partido !== SIN_PARTIDO,
   });
 
   // Índice de pobreza por sección (ya viene de la más pobre a la menos) y
@@ -237,6 +288,25 @@ function MapaPage() {
                 ))}
               </SelectContent>
             </Select>
+            <Select value={partido} onValueChange={setPartido}>
+              <SelectTrigger className="w-[190px]" aria-label="Resaltar partido ganador">
+                <SelectValue placeholder="Partido ganador" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={SIN_PARTIDO}>Sin partido</SelectItem>
+                {PARTIDOS.map((p) => (
+                  <SelectItem key={p.siglas} value={p.siglas}>
+                    <span className="flex items-center gap-2">
+                      <span
+                        className="h-2.5 w-2.5 rounded-sm border border-black/10"
+                        style={{ backgroundColor: colorPartido(p.siglas) }}
+                      />
+                      {p.nombre}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <PovertySectionFilter
               secciones={pobreza.data ?? []}
               municipioDe={municipioDe}
@@ -263,6 +333,17 @@ function MapaPage() {
               <Badge variant="secondary">{filtered.length} secciones</Badge>
             </div>
           </CardHeader>
+
+          {resalte && (
+            <ResumenPartido
+              nombre={resalte.nombre}
+              color={resalte.color}
+              ambito={municipio === "todos" ? "todo el estado" : municipio}
+              resumen={resumen.data ?? null}
+              cargando={resumen.isLoading}
+            />
+          )}
+
           <CardContent className="h-[560px] p-3 pt-0">
             {units.isLoading ? (
               <Skeleton className="h-full w-full" />
@@ -297,6 +378,8 @@ function MapaPage() {
                     goals={goals.data ?? {}}
                     metric={metric}
                     poverty={pobrezaPorSeccion}
+                    listaNominal={listaNominal.data ?? {}}
+                    highlight={resalte}
                     focusRequest={focusRequest}
                     selectedId={selected?.id ?? null}
                     onSelect={setSelected}
@@ -517,6 +600,89 @@ function MapaPage() {
         }}
       />
     </>
+  );
+}
+
+const fmt = (n: number) => n.toLocaleString("es-MX");
+
+/**
+ * Lo que logró el partido resaltado: secciones ganadas y votos.
+ *
+ * Va junto a los filtros y no en la ficha lateral porque responde a la
+ * selección, no a la sección que se esté viendo, y se mueve con el municipio.
+ */
+function ResumenPartido({
+  nombre,
+  color,
+  ambito,
+  resumen,
+  cargando,
+}: {
+  nombre: string;
+  color: string;
+  ambito: string;
+  resumen: ResumenPartidoDatos | null;
+  cargando: boolean;
+}) {
+  const pctSecciones =
+    resumen && resumen.seccionesConResultado > 0
+      ? Math.round((resumen.seccionesGanadas / resumen.seccionesConResultado) * 1000) / 10
+      : 0;
+  const pctVotos =
+    resumen && resumen.votosEmitidos > 0
+      ? Math.round((resumen.votos / resumen.votosEmitidos) * 1000) / 10
+      : 0;
+
+  return (
+    <div className="mx-6 mb-3 rounded-md border border-border bg-muted/40 p-3">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+        <span className="flex items-center gap-2 font-medium">
+          <span
+            className="h-3 w-3 rounded-sm border border-black/20"
+            style={{ backgroundColor: color }}
+          />
+          {nombre}
+        </span>
+
+        {cargando && <span className="text-sm text-muted-foreground">Contando votos…</span>}
+
+        {!cargando && resumen && (
+          <>
+            <span className="text-sm">
+              <span className="font-display text-lg font-semibold tabular-nums">
+                {fmt(resumen.seccionesGanadas)}
+              </span>{" "}
+              <span className="text-muted-foreground">
+                de {fmt(resumen.seccionesConResultado)} secciones ganadas ({pctSecciones}%)
+              </span>
+            </span>
+            <span className="text-sm">
+              <span className="font-display text-lg font-semibold tabular-nums">
+                {fmt(resumen.votos)}
+              </span>{" "}
+              <span className="text-muted-foreground">
+                votos de {fmt(resumen.votosEmitidos)} emitidos ({pctVotos}%)
+              </span>
+            </span>
+            <span className="ml-auto text-xs text-muted-foreground">
+              {resumen.etiqueta} · {ambito}
+            </span>
+          </>
+        )}
+
+        {!cargando && !resumen && (
+          <span className="text-sm text-muted-foreground">
+            Sin cómputos cargados para este ámbito.
+          </span>
+        )}
+      </div>
+
+      {/* Los votos son los del bloque que llevaba al partido en cada municipio:
+          donde hubo coalición, la cifra es la de la alianza completa. */}
+      <p className="mt-1 text-[11px] text-muted-foreground">
+        Incluye los votos de la coalición que llevó a {nombre} en cada municipio.
+      </p>
+    </div>
   );
 }
 

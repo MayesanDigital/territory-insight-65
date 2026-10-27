@@ -12,7 +12,14 @@ import {
   type PobrezaSeccion,
 } from "@/services/povertyService";
 
-export type MapMetric = "population" | "contacts" | "coverage" | "density" | "poverty";
+export type MapMetric =
+  | "population"
+  | "nominal"
+  | "households"
+  | "contacts"
+  | "coverage"
+  | "density"
+  | "poverty";
 
 /**
  * Contactos de una sección, desglosados por categoría de seguimiento.
@@ -27,6 +34,30 @@ export interface SectionContacts {
 
 export const SIN_CONTACTOS: SectionContacts = { total: 0, fidelizado: 0, seguro: 0 };
 
+/**
+ * Resalte por partido ganador.
+ *
+ * Cuando llega, el color deja de representar la métrica y pasa a responder una
+ * sola pregunta: ¿ganó aquí este partido? Las secciones ganadas se pintan con el
+ * color del partido y el resto se atenúa en gris en lugar de ocultarse, porque
+ * el territorio que no se ganó es justamente el que hay que ver al lado.
+ */
+export interface MapHighlight {
+  siglas: string;
+  nombre: string;
+  color: string;
+  /** Etiqueta de la elección comparada, p. ej. "Ayuntamientos 2024". */
+  etiqueta: string;
+  /** Secciones que ganó el partido, por clave de sección. */
+  ganadas: Set<string>;
+  /**
+   * Secciones con cómputo cargado. Permite distinguir "aquí ganó otro" de
+   * "aquí no hay resultado", que son cosas distintas: las secciones creadas en
+   * el reseccionamiento no tienen con qué compararse.
+   */
+  conResultado: Set<string>;
+}
+
 interface Props {
   units: TerritorialUnit[];
   /**
@@ -40,9 +71,13 @@ interface Props {
   winners?: Record<string, GanadorSeccion>;
   /** Meta de contactos fijada por la campaña, por clave de sección. */
   goals?: Record<string, number>;
+  /** Lista nominal por clave de sección; alimenta la capa "nominal". */
+  listaNominal?: Record<string, number>;
   metric: MapMetric;
   /** Índice de pobreza por clave de sección; colorea la capa "poverty". */
   poverty?: Record<string, PobrezaSeccion>;
+  /** Partido cuyo territorio ganado se resalta. Nulo deja la capa temática. */
+  highlight?: MapHighlight | null;
   selectedId?: string | null;
   /**
    * Pide centrar el mapa en una sección y abrir su ficha. `n` cambia en cada
@@ -60,12 +95,23 @@ const SCALE = ["#F1E7D8", "#E0C89B", "#C79E5E", "#A8763E", "#7A4E23"];
 const SELECTED = "#7A2E2E";
 const SIN_DATO = "#D6D3CE";
 const SIN_POBREZA: Record<string, PobrezaSeccion> = {};
+const SIN_NOMINAL: Record<string, number> = {};
 const BORDER = "#8b7a5f";
+/** Gris del territorio que ganó otra fuerza, en modo resalte. */
+const NO_GANADA = "#CFCAC2";
+/** Gris más claro: la sección no tiene cómputo en esa elección. */
+const SIN_COMPUTO = "#EDEAE5";
+/** Contorno oscuro que recorta la sección ganada sobre sus vecinas. */
+const BORDE_GANADA = "#2F2A24";
 
-function metricValue(u: TerritorialUnit, contacts: number, metric: MapMetric) {
+function metricValue(u: TerritorialUnit, contacts: number, nominal: number, metric: MapMetric) {
   switch (metric) {
     case "population":
       return u.population ?? 0;
+    case "nominal":
+      return nominal;
+    case "households":
+      return u.households ?? 0;
     case "contacts":
       return contacts;
     case "coverage":
@@ -108,9 +154,10 @@ function buildPopup(
   winner?: GanadorSeccion,
   goal?: number,
   pobreza?: PobrezaSeccion,
+  nominal?: number,
 ): HTMLElement {
   const el = document.createElement("div");
-  el.innerHTML = popupHtml(u, contacts, winner, goal, pobreza);
+  el.innerHTML = popupHtml(u, contacts, winner, goal, pobreza, nominal);
 
   if (onAdd && canAdd) {
     const button = document.createElement("button");
@@ -145,6 +192,7 @@ function popupHtml(
   winner?: GanadorSeccion,
   goal?: number,
   pobreza?: PobrezaSeccion,
+  nominal?: number,
 ) {
   const total = u.population ?? 0;
   const cobertura = total > 0 ? ((contacts.total / total) * 100).toFixed(2) : "0.00";
@@ -231,6 +279,13 @@ function popupHtml(
         <span>Hogares</span><b>${fmt(u.households)}</b>
       </div>
       ${
+        nominal
+          ? `<div style="display:flex;justify-content:space-between;font-size:12px">
+               <span>Lista nominal</span><b>${fmt(nominal)}</b>
+             </div>`
+          : ""
+      }
+      ${
         pobreza
           ? `<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px">
                <span>Nivel de pobreza</span>
@@ -280,8 +335,10 @@ export default function TerritoryMap({
   contactCounts,
   winners = {},
   goals = {},
+  listaNominal = SIN_NOMINAL,
   metric,
   poverty = SIN_POBREZA,
+  highlight = null,
   selectedId,
   focusRequest,
   onSelect,
@@ -325,6 +382,16 @@ export default function TerritoryMap({
   goalsRef.current = goals;
   const povertyRef = useRef(poverty);
   povertyRef.current = poverty;
+  const nominalRef = useRef(listaNominal);
+  nominalRef.current = listaNominal;
+
+  /**
+   * Trazo base de cada sección, para que el resaltado de la selección pueda
+   * devolverla a su estilo sin volver a calcularlo. En modo resalte el contorno
+   * no es igual para todas —la ganada va recortada y el resto apagado—, así que
+   * restaurar un único `BORDER` fijo borraría el resalte al cambiar de sección.
+   */
+  const baseStrokeRef = useRef(new Map<string, { color: string; weight: number }>());
 
   /**
    * Sección cuyo popup está abierto. Al guardar un contacto cambian los
@@ -336,8 +403,16 @@ export default function TerritoryMap({
   const popupOwnersRef = useRef(new Map<string, L.Layer>());
 
   const values = useMemo(
-    () => units.map((u) => metricValue(u, (contactCounts[u.section_code] ?? SIN_CONTACTOS).total, metric)),
-    [units, contactCounts, metric],
+    () =>
+      units.map((u) =>
+        metricValue(
+          u,
+          (contactCounts[u.section_code] ?? SIN_CONTACTOS).total,
+          listaNominal[u.section_code] ?? 0,
+          metric,
+        ),
+      ),
+    [units, contactCounts, listaNominal, metric],
   );
   const max = Math.max(...values, 1);
 
@@ -384,6 +459,7 @@ export default function TerritoryMap({
     layer.clearLayers();
     shapesRef.current.clear();
     popupOwnersRef.current.clear();
+    baseStrokeRef.current.clear();
     const bounds: L.LatLngExpression[] = [];
 
     units.forEach((u, i) => {
@@ -391,12 +467,33 @@ export default function TerritoryMap({
       const value = values[i] ?? 0;
       const idx = Math.min(SCALE.length - 1, Math.floor((value / max) * SCALE.length));
       const nivel = poverty[u.section_code];
-      const color =
-        metric === "poverty"
+
+      // En modo resalte el color responde a quién ganó; si no, a la métrica.
+      const ganada = highlight?.ganadas.has(u.section_code) ?? false;
+      const sinComputo = highlight ? !highlight.conResultado.has(u.section_code) : false;
+      const color = highlight
+        ? ganada
+          ? highlight.color
+          : sinComputo
+            ? SIN_COMPUTO
+            : NO_GANADA
+        : metric === "poverty"
           ? nivel
             ? GRADO_COLOR[nivel.grado]
             : SIN_DATO
           : (SCALE[idx] ?? SCALE[0]!);
+
+      const stroke = highlight
+        ? ganada
+          ? { color: BORDE_GANADA, weight: 1.4 }
+          : { color: BORDER, weight: 0.5 }
+        : { color: BORDER, weight: 1 };
+      baseStrokeRef.current.set(u.id, stroke);
+
+      // Atenuar lo no ganado, sin llegar a borrarlo: la comparación es el dato.
+      const fillPoly = highlight ? (ganada ? 0.85 : 0.3) : 0.75;
+      const fillPunto = highlight ? (ganada ? 0.95 : 0.4) : 0.85;
+
       const content = () =>
         buildPopup(
           u,
@@ -406,6 +503,7 @@ export default function TerritoryMap({
           winnersRef.current[u.section_code],
           goalsRef.current[u.section_code],
           povertyRef.current[u.section_code],
+          nominalRef.current[u.section_code],
         );
 
       const track = (l: L.Layer) => {
@@ -420,7 +518,7 @@ export default function TerritoryMap({
       const geometry = geometryById[u.id];
       if (geometry) {
         const poly = L.geoJSON(geometry as never, {
-          style: { color: BORDER, weight: 1, fillColor: color, fillOpacity: 0.75 },
+          style: { ...stroke, fillColor: color, fillOpacity: fillPoly },
         });
         poly.on("click", () => onSelectRef.current(u));
         poly.bindPopup(content, { maxWidth: 340, minWidth: 260 });
@@ -428,15 +526,18 @@ export default function TerritoryMap({
         poly.addTo(layer);
         shapesRef.current.set(u.id, poly);
         popupOwnersRef.current.set(u.id, poly);
+        // Sin esto, el gris de las vecinas se dibuja encima del borde ganado.
+        if (ganada) poly.bringToFront();
         const b = poly.getBounds();
         if (b.isValid()) bounds.push(b.getNorthEast(), b.getSouthWest());
       } else if (u.centroid_lat != null && u.centroid_lng != null) {
         const marker = L.circleMarker([u.centroid_lat, u.centroid_lng], {
-          radius: 5,
-          color: BORDER,
-          weight: 1,
+          // Sin polígonos el mapa es una nube de puntos; el tamaño es lo que
+          // hace legible el resalte a escala estatal, no solo el color.
+          radius: highlight ? (ganada ? 6 : 3) : 5,
+          ...stroke,
           fillColor: color,
-          fillOpacity: 0.85,
+          fillOpacity: fillPunto,
         });
         marker.on("click", () => onSelectRef.current(u));
         marker.bindPopup(content, { maxWidth: 340, minWidth: 260 });
@@ -444,6 +545,7 @@ export default function TerritoryMap({
         marker.addTo(layer);
         shapesRef.current.set(u.id, marker);
         popupOwnersRef.current.set(u.id, marker);
+        if (ganada) marker.bringToFront();
         bounds.push([u.centroid_lat, u.centroid_lng]);
       }
     });
@@ -461,16 +563,28 @@ export default function TerritoryMap({
       const owner = popupOwnersRef.current.get(reopen);
       if (owner) owner.openPopup();
     }
-  }, [units, geometryById, contactCounts, metric, poverty, max, values, fitKey, canAddContact]);
+  }, [
+    units,
+    geometryById,
+    contactCounts,
+    metric,
+    poverty,
+    highlight,
+    max,
+    values,
+    fitKey,
+    canAddContact,
+  ]);
 
   // --- Resaltar. Solo cambia el estilo; nunca redibuja ni mueve la vista. ---
   useEffect(() => {
     for (const [id, shape] of shapesRef.current) {
       const active = id === selectedId;
-      shape.setStyle({ color: active ? SELECTED : BORDER, weight: active ? 3 : 1 });
+      const base = baseStrokeRef.current.get(id) ?? { color: BORDER, weight: 1 };
+      shape.setStyle(active ? { color: SELECTED, weight: 3 } : base);
       if (active) shape.bringToFront();
     }
-  }, [selectedId, units, geometryById]);
+  }, [selectedId, units, geometryById, highlight]);
 
   // --- Centrar en la sección pedida desde el filtro de pobreza. ---
   // Corre después del dibujo, así que prevalece sobre el encuadre del municipio.
@@ -502,7 +616,29 @@ export default function TerritoryMap({
     <div className="relative isolate h-full w-full overflow-hidden rounded-lg border border-border">
       <div ref={containerRef} className="h-full w-full" />
       <div className="pointer-events-none absolute bottom-3 left-3 z-10 rounded-md border border-border bg-card/95 p-3 text-xs shadow-sm">
-        {metric === "poverty" ? (
+        {highlight ? (
+          <>
+            <p className="mb-2 font-medium uppercase tracking-wider">{highlight.nombre}</p>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span
+                  className="h-3 w-5 border border-black/20"
+                  style={{ backgroundColor: highlight.color }}
+                />
+                <span>Ganó la sección</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="h-3 w-5 border border-black/10" style={{ backgroundColor: NO_GANADA }} />
+                <span>Ganó otra fuerza</span>
+              </div>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <span className="h-3 w-5 border border-black/10" style={{ backgroundColor: SIN_COMPUTO }} />
+                <span>Sin cómputo</span>
+              </div>
+            </div>
+            <p className="mt-2 text-[10px] text-muted-foreground">{highlight.etiqueta}</p>
+          </>
+        ) : metric === "poverty" ? (
           <>
             <p className="mb-2 font-medium uppercase tracking-wider">Nivel de pobreza</p>
             <div className="space-y-1">

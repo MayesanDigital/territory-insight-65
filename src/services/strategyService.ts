@@ -38,6 +38,30 @@ export const PARTIDOS = [
   { siglas: "PES", nombre: "PES" },
 ] as const;
 
+/**
+ * Color por partido para mapas y leyendas.
+ *
+ * Se usan los colores con los que cada partido aparece en la boleta y en la
+ * cartografía electoral: en un mapa de ganadores el color es la leyenda, y
+ * cualquier paleta inventada obligaría a consultarla en cada vistazo. PRI va en
+ * verde oscuro y PVEM en lima para que no se confundan entre sí, ni el rojo del
+ * PT con el guinda de Morena.
+ */
+export const PARTIDO_COLOR: Record<string, string> = {
+  MORENA: "#A6093D",
+  PAN: "#0B5FA5",
+  PRI: "#16663A",
+  PRD: "#D9A400",
+  PT: "#C8102E",
+  PVEM: "#7CB518",
+  MC: "#E8701A",
+  NA: "#16A0A0",
+  PES: "#6B3FA0",
+};
+
+/** Color del partido, con un gris de respaldo para siglas no catalogadas. */
+export const colorPartido = (siglas: string) => PARTIDO_COLOR[siglas] ?? "#6B6B6B";
+
 export type Clasificacion =
   | "siempre_gana"
   | "perdida"

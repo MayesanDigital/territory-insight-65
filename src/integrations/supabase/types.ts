@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.15"
   }
   graphql_public: {
     Tables: {
@@ -1548,6 +1548,22 @@ export type Database = {
           _notes?: string
         }
         Returns: string
+      }
+      resumen_partido: {
+        Args: {
+          _municipio?: string
+          _siglas: string
+          _tipo?: string
+          _year?: number
+        }
+        Returns: {
+          anio: number
+          etiqueta: string
+          secciones_con_resultado: number
+          secciones_ganadas: number
+          votos: number
+          votos_emitidos: number
+        }[]
       }
       upsert_territorial_unit: {
         Args: {

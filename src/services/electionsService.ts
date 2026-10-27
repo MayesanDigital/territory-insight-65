@@ -49,9 +49,31 @@ export interface GanadorSeccion {
   participacion: number | null;
   totalVotos: number;
   etiqueta: string;
+  /**
+   * Siglas que integraban la fuerza ganadora en ese municipio.
+   *
+   * `ganador` es la etiqueta ya compuesta ("PAN-PRD-PRI"), que sirve para leerla
+   * pero no para preguntar si un partido concreto ganó: en una coalición la
+   * etiqueta mezcla nombres y en otro municipio el mismo partido pudo ir solo.
+   * Con las siglas la pregunta se responde exacta.
+   */
+  partidos: string[];
 }
 
 type PartidosJson = { partidos?: VotoPartido[]; coaliciones?: VotoCoalicion[] };
+
+/**
+ * Fila de `ganadores`. El tipo generado no describe las rutas de jsonb que se
+ * piden con alias, así que la forma se declara aquí y se valida al leerla.
+ */
+type FilaGanador = {
+  section_code: string;
+  ganador: string | null;
+  participacion: number | null;
+  total_votos: number;
+  election_label: string;
+  ganadorPartidos: unknown;
+};
 
 function aResultado(row: SectionElectionRow): ResultadoSeccion {
   // Ambos campos son jsonb; el importador garantiza estas formas.
@@ -73,7 +95,52 @@ function aResultado(row: SectionElectionRow): ResultadoSeccion {
   };
 }
 
+/** Lo que un partido logró en una elección: secciones ganadas y votos. */
+export interface ResumenPartido {
+  anio: number;
+  etiqueta: string;
+  seccionesGanadas: number;
+  seccionesConResultado: number;
+  votos: number;
+  votosEmitidos: number;
+}
+
 export const electionsService = {
+  /**
+   * Resumen de un partido en la elección más reciente del tipo indicado.
+   *
+   * Lo calcula la base (`resumen_partido`): la cuenta vive dentro del jsonb de
+   * resultados y traerlo de ~1,800 secciones serían varios MB por consulta.
+   *
+   * Los votos son los del bloque que llevaba al partido en cada municipio, así
+   * que los de dos partidos coaligados no se pueden sumar entre sí.
+   */
+  async resumenPartido(
+    siglas: string,
+    tipo = "ayuntamiento",
+    municipio?: string | null,
+  ): Promise<ResumenPartido | null> {
+    const acotado = municipio && municipio !== "todos" ? municipio : null;
+    const { data, error } = await supabase.rpc("resumen_partido", {
+      _siglas: siglas,
+      _tipo: tipo,
+      // Sin municipio la función resume todo el estado; la clave se omite para
+      // que tome su valor por omisión en vez de recibir un nulo explícito.
+      ...(acotado ? { _municipio: acotado } : {}),
+    });
+    if (error) throw error;
+    const fila = (data as unknown as Array<Record<string, number | string>> | null)?.[0];
+    if (!fila || !fila["anio"]) return null;
+    return {
+      anio: Number(fila["anio"]),
+      etiqueta: String(fila["etiqueta"] ?? ""),
+      seccionesGanadas: Number(fila["secciones_ganadas"] ?? 0),
+      seccionesConResultado: Number(fila["secciones_con_resultado"] ?? 0),
+      votos: Number(fila["votos"] ?? 0),
+      votosEmitidos: Number(fila["votos_emitidos"] ?? 0),
+    };
+  },
+
   /** Resultados de una sección, del proceso más antiguo al más reciente. */
   async bySection(sectionCode: string): Promise<ResultadoSeccion[]> {
     const { data, error } = await supabase
@@ -139,7 +206,12 @@ export const electionsService = {
     for (let desde = 0; ; desde += PAGINA) {
       const { data, error } = await supabase
         .from("section_election_results")
-        .select("section_code, ganador, participacion, total_votos, election_label")
+        // `resultados` viene ordenado de más a menos votos desde el ETL, así que
+        // el elemento 0 es la fuerza ganadora. Se pide solo esa ruta del jsonb:
+        // traer la columna entera serían varios MB para ~1,800 secciones.
+        .select(
+          "section_code, ganador, participacion, total_votos, election_label, ganadorPartidos:resultados->0->partidos",
+        )
         .eq("election_year", year)
         .eq("election_type", electionType)
         .order("section_code")
@@ -148,12 +220,15 @@ export const electionsService = {
       if (error) throw error;
       if (!data?.length) break;
 
-      for (const row of data) {
+      for (const row of data as unknown as FilaGanador[]) {
         mapa[row.section_code] = {
           ganador: row.ganador,
           participacion: row.participacion,
           totalVotos: row.total_votos,
           etiqueta: row.election_label,
+          partidos: Array.isArray(row.ganadorPartidos)
+            ? row.ganadorPartidos.filter((p): p is string => typeof p === "string")
+            : [],
         };
       }
       if (data.length < PAGINA) break;
