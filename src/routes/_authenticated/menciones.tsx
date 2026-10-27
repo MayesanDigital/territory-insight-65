@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { monitoringService } from "@/services/monitoringService";
+import { useAuth } from "@/hooks/useAuth";
 import { exportCSV, stamped } from "@/lib/export";
 import { SENTIMENT_LABELS } from "@/types";
 
@@ -61,6 +62,8 @@ function redSocialDe(dominio: string | null): string | null {
 }
 
 function MencionesPage() {
+  const { puede } = useAuth();
+  const puedeImprimir = puede("reportes.imprimir");
   const { monitor } = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
 
@@ -110,6 +113,7 @@ function MencionesPage() {
                 {monitor && !elegido && <SelectItem value={monitor}>Búsqueda borrada</SelectItem>}
               </SelectContent>
             </Select>
+            {puedeImprimir && (
             <Button
               variant="outline"
               disabled={rows.length === 0}
@@ -131,6 +135,7 @@ function MencionesPage() {
             >
               <Download className="mr-2 h-4 w-4" /> Exportar
             </Button>
+            )}
           </>
         }
       />

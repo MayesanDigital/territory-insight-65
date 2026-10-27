@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { UserAdmin } from "@/components/user-admin";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { CandidateForm } from "@/components/candidate-form";
@@ -25,7 +26,7 @@ export const Route = createFileRoute("/_authenticated/configuracion")({
 });
 
 function ConfiguracionPage() {
-  const { profile, roles, user } = useAuth();
+  const { profile, roles, user, canAdmin } = useAuth();
 
   return (
     <>
@@ -48,6 +49,14 @@ function ConfiguracionPage() {
             </div>
           </CardContent>
         </Card>
+        {/* La administración de usuarios solo existe para quien administra: a
+            los demás no se les ofrece una puerta que la base les cerraría. */}
+        {canAdmin && (
+          <div className="lg:col-span-2">
+            <UserAdmin />
+          </div>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Políticas de uso de datos</CardTitle>

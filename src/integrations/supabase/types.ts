@@ -710,6 +710,33 @@ export type Database = {
         }
         Relationships: []
       }
+      permission_catalog: {
+        Row: {
+          descripcion: string | null
+          etiqueta: string
+          grupo: string
+          orden: number
+          permiso: string
+          requiere_rol: Database["public"]["Enums"]["app_role"][] | null
+        }
+        Insert: {
+          descripcion?: string | null
+          etiqueta: string
+          grupo: string
+          orden?: number
+          permiso: string
+          requiere_rol?: Database["public"]["Enums"]["app_role"][] | null
+        }
+        Update: {
+          descripcion?: string | null
+          etiqueta?: string
+          grupo?: string
+          orden?: number
+          permiso?: string
+          requiere_rol?: Database["public"]["Enums"]["app_role"][] | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -1188,6 +1215,48 @@ export type Database = {
           },
         ]
       }
+      user_permissions: {
+        Row: {
+          created_at: string
+          granted_by: string | null
+          id: string
+          org_id: string
+          permiso: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          granted_by?: string | null
+          id?: string
+          org_id: string
+          permiso: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          granted_by?: string | null
+          id?: string
+          org_id?: string
+          permiso?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_permissions_catalogo"
+            columns: ["permiso"]
+            isOneToOne: false
+            referencedRelation: "permission_catalog"
+            referencedColumns: ["permiso"]
+          },
+          {
+            foreignKeyName: "user_permissions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -1539,6 +1608,12 @@ export type Database = {
         Returns: boolean
       }
       is_super_admin: { Args: never; Returns: boolean }
+      mis_permisos: {
+        Args: never
+        Returns: {
+          permiso: string
+        }[]
+      }
       record_consent: {
         Args: {
           _consent_type: string
@@ -1565,6 +1640,7 @@ export type Database = {
           votos_emitidos: number
         }[]
       }
+      tiene_permiso: { Args: { _permiso: string }; Returns: boolean }
       upsert_territorial_unit: {
         Args: {
           _data_status?: string

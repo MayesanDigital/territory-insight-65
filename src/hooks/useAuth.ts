@@ -13,6 +13,10 @@ export interface AuthState {
   /** Ejecuta análisis: monitores, fuentes y reportes. No toca datos personales. */
   canAnalyze: boolean;
   isSuperAdmin: boolean;
+  /** Permisos efectivos: qué pantallas puede abrir y qué acciones usar. */
+  permisos: string[];
+  /** ¿Tiene este permiso? Mientras carga la sesión responde que no. */
+  puede: (permiso: string) => boolean;
   /** El usuario existe pero todavía no pertenece a ninguna organización. */
   needsOnboarding: boolean;
   loading: boolean;
@@ -22,6 +26,7 @@ interface Snapshot {
   user: User | null;
   profile: Profile | null;
   roles: AppRole[];
+  permisos: string[];
   loading: boolean;
 }
 
@@ -34,7 +39,7 @@ interface Snapshot {
  * peticiones idénticas antes de pedir un solo dato. Ahora se resuelve una vez y
  * todos los componentes leen la misma instantánea.
  */
-let snapshot: Snapshot = { user: null, profile: null, roles: [], loading: true };
+let snapshot: Snapshot = { user: null, profile: null, roles: [], permisos: [], loading: true };
 const listeners = new Set<() => void>();
 let started = false;
 let loadedFor: string | null = null;
@@ -47,7 +52,7 @@ function emit(next: Partial<Snapshot>) {
 async function loadFor(u: User | null) {
   if (!u) {
     loadedFor = null;
-    emit({ user: null, profile: null, roles: [], loading: false });
+    emit({ user: null, profile: null, roles: [], permisos: [], loading: false });
     return;
   }
   // El refresco periódico del token vuelve a notificar al mismo usuario; su
@@ -57,12 +62,21 @@ async function loadFor(u: User | null) {
     return;
   }
   loadedFor = u.id;
-  const [{ data: p }, { data: r }] = await Promise.all([
+  const [{ data: p }, { data: r }, { data: permisos }] = await Promise.all([
     supabase.from("profiles").select("*").eq("id", u.id).maybeSingle(),
     supabase.from("user_roles").select("role").eq("user_id", u.id),
+    // Los permisos los resuelve la base contra el rol: la interfaz no los
+    // deduce, solo los obedece, y así no se separan de lo que aplica RLS.
+    supabase.rpc("mis_permisos"),
   ]);
   if (loadedFor !== u.id) return; // Cambió la sesión mientras se cargaba.
-  emit({ user: u, profile: p ?? null, roles: (r ?? []).map((x) => x.role), loading: false });
+  emit({
+    user: u,
+    profile: p ?? null,
+    roles: (r ?? []).map((x) => x.role),
+    permisos: ((permisos ?? []) as Array<{ permiso: string }>).map((x) => x.permiso),
+    loading: false,
+  });
 }
 
 function start() {
@@ -85,11 +99,11 @@ function subscribe(listener: () => void) {
 }
 
 const getSnapshot = () => snapshot;
-const SERVER_SNAPSHOT: Snapshot = { user: null, profile: null, roles: [], loading: true };
+const SERVER_SNAPSHOT: Snapshot = { user: null, profile: null, roles: [], permisos: [], loading: true };
 const getServerSnapshot = () => SERVER_SNAPSHOT;
 
 export function useAuth(): AuthState {
-  const { user, profile, roles, loading } = useSyncExternalStore(
+  const { user, profile, roles, permisos, loading } = useSyncExternalStore(
     subscribe,
     getSnapshot,
     getServerSnapshot,
@@ -112,6 +126,10 @@ export function useAuth(): AuthState {
     canAdmin,
     canAnalyze,
     isSuperAdmin,
+    permisos,
+    // Sin permisos cargados todavía no se afirma que pueda: la pantalla espera
+    // en lugar de parpadear mostrando algo que luego se oculta.
+    puede: (permiso: string) => permisos.includes(permiso),
     needsOnboarding: !loading && !!user && !orgId,
     loading,
   };

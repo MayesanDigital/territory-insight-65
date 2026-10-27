@@ -95,7 +95,8 @@ const categoriaDe = (c: Contact) =>
 function ContactosPage() {
   const qc = useQueryClient();
   const navigate = useNavigate({ from: Route.fullPath });
-  const { canAdmin, orgId } = useAuth();
+  const { canAdmin, orgId, puede } = useAuth();
+  const puedeImprimir = puede("contactos.imprimir");
   const filtros = Route.useSearch();
 
   const [search, setSearch] = useState("");
@@ -258,9 +259,14 @@ function ContactosPage() {
         description="Registro administrativo de personas que otorgaron consentimiento. No se registran preferencias ni afinidades políticas."
         actions={
           <>
+            {/* Imprimir y exportar sacan datos personales de la plataforma: el
+                catálogo lo reserva a administradores y asesores. */}
+            {puedeImprimir && (
             <Button variant="outline" disabled={rows.length === 0} onClick={() => void imprimir()}>
               <Printer className="mr-2 h-4 w-4" /> Imprimir
             </Button>
+            )}
+            {puedeImprimir && (
             <Button
               variant="outline"
               disabled={rows.length === 0}
@@ -286,6 +292,7 @@ function ContactosPage() {
             >
               <Download className="mr-2 h-4 w-4" /> Exportar
             </Button>
+            )}
             {canAdmin && (
               <Button
                 onClick={() => {

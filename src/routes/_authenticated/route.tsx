@@ -1,5 +1,12 @@
-import { createFileRoute, Outlet, redirect, useNavigate } from "@tanstack/react-router";
-import { LogOut, Moon, Sun } from "lucide-react";
+import {
+  createFileRoute,
+  Link,
+  Outlet,
+  redirect,
+  useNavigate,
+  useRouterState,
+} from "@tanstack/react-router";
+import { Lock, LogOut, Moon, Sun } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -55,10 +62,54 @@ export const Route = createFileRoute("/_authenticated")({
   component: AuthenticatedLayout,
 });
 
+/**
+ * Permiso que exige cada pantalla.
+ *
+ * El menú ya oculta lo que no se puede abrir, pero una dirección escrita a mano
+ * o un enlace guardado entran igual: aquí se vuelve a comprobar. Los datos
+ * sensibles los protege además RLS, así que esto evita una pantalla rota, no es
+ * la única defensa.
+ */
+const PERMISO_DE_RUTA: Record<string, string> = {
+  "/dashboard": "dashboard",
+  "/mapa": "mapa",
+  "/secciones": "secciones",
+  "/contactos": "contactos",
+  "/analytics": "analytics",
+  "/analisis-estrategico": "analisis-estrategico",
+  "/monitor": "monitor",
+  "/menciones": "menciones",
+  "/comparativo": "comparativo",
+  "/reportes": "reportes",
+  "/importar": "importar",
+  "/configuracion": "configuracion",
+};
+
+function SinAcceso() {
+  return (
+    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 text-center">
+      <Lock className="h-8 w-8 text-muted-foreground" />
+      <div>
+        <p className="font-medium">No tienes acceso a esta pantalla</p>
+        <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+          Si la necesitas, pídele a quien administra la plataforma que te la habilite en
+          Configuración.
+        </p>
+      </div>
+      <Button asChild variant="outline" size="sm">
+        <Link to="/dashboard">Ir al inicio</Link>
+      </Button>
+    </div>
+  );
+}
+
 function AuthenticatedLayout() {
   const { theme, toggle } = useTheme();
-  const { profile, roles } = useAuth();
+  const { profile, roles, puede, loading } = useAuth();
   const navigate = useNavigate();
+  const pathname = useRouterState({ select: (r) => r.location.pathname });
+  const permiso = PERMISO_DE_RUTA[pathname];
+  const bloqueada = !loading && !!permiso && !puede(permiso);
 
   const signOut = async () => {
     orgCache = null;
@@ -93,9 +144,7 @@ function AuthenticatedLayout() {
             </div>
           </header>
           <CandidateHeader />
-          <main className="flex-1 p-4 md:p-6">
-            <Outlet />
-          </main>
+          <main className="flex-1 p-4 md:p-6">{bloqueada ? <SinAcceso /> : <Outlet />}</main>
         </div>
       </div>
     </SidebarProvider>

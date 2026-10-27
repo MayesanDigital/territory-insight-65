@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { territoryService } from "@/services/territoryService";
+import { useAuth } from "@/hooks/useAuth";
 import {
   CLASIFICACION,
   normalizaMunicipio,
@@ -55,6 +56,8 @@ const ORDEN: Clasificacion[] = [
 const fmt = (n: number) => n.toLocaleString("es-MX");
 
 function AnalisisPage() {
+  const { puede } = useAuth();
+  const puedeImprimir = puede("reportes.imprimir");
   const [partido, setPartido] = useState("MORENA");
   const [municipio, setMunicipio] = useState("");
 
@@ -129,12 +132,16 @@ function AnalisisPage() {
               <Badge variant="secondary" className="ml-auto">
                 {analisis.data.procesos.map((p) => p.año).join(" · ")}
               </Badge>
-              <Button variant="outline" size="sm" onClick={() => imprimir(analisis.data!, nombrePartido)}>
-                <Printer className="mr-2 h-4 w-4" /> Imprimir / PDF
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => descargar(analisis.data!, nombrePartido)}>
-                <Download className="mr-2 h-4 w-4" /> CSV
-              </Button>
+              {puedeImprimir && (
+                <>
+                  <Button variant="outline" size="sm" onClick={() => imprimir(analisis.data!, nombrePartido)}>
+                    <Printer className="mr-2 h-4 w-4" /> Imprimir / PDF
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => descargar(analisis.data!, nombrePartido)}>
+                    <Download className="mr-2 h-4 w-4" /> CSV
+                  </Button>
+                </>
+              )}
             </>
           )}
         </CardHeader>

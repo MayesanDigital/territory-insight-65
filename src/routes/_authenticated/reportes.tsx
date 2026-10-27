@@ -56,6 +56,8 @@ const TYPES: Array<{ type: ReportType; icon: typeof MapIcon }> = [
 type Format = "pdf" | "csv" | "xlsx";
 
 function ReportesPage() {
+  const { puede } = useAuth();
+  const puedeImprimir = puede("reportes.imprimir");
   const qc = useQueryClient();
   const { orgId } = useAuth();
   const [busy, setBusy] = useState<string | null>(null);
@@ -133,7 +135,8 @@ function ReportesPage() {
                     key={format}
                     size="sm"
                     variant={format === "pdf" ? "default" : "outline"}
-                    disabled={!!busy}
+                    disabled={!!busy || !puedeImprimir}
+                    title={puedeImprimir ? undefined : "Solo administradores y asesores generan reportes"}
                     onClick={() => generate.mutate({ type, format })}
                   >
                     {isBusy ? (
