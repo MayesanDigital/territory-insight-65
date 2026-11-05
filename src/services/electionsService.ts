@@ -173,7 +173,91 @@ export function resumePartido(
   return total;
 }
 
+/**
+ * Una fuerza en el resultado de un municipio.
+ *
+ * Se suma por bloque y no por partido porque el bloque es lo que llevaba la
+ * candidatura; repartirlo entre sus integrantes inventaría un orden de llegada
+ * que no ocurrió. `seccionesGanadas` va aparte de los votos a propósito: ganar
+ * el municipio y ganar más secciones son resultados que pueden no coincidir,
+ * porque las secciones no pesan igual.
+ */
+export interface FuerzaMunicipio {
+  etiqueta: string;
+  partidos: string[];
+  votos: number;
+  seccionesGanadas: number;
+  seccionesConVotos: number;
+}
+
+export interface ResultadoMunicipio {
+  anio: number;
+  eleccion: string;
+  municipio: string;
+  fuerzas: FuerzaMunicipio[];
+  totalVotos: number;
+  votosNulos: number;
+  /** Votos por candidaturas no registradas: el acta los suma al total. */
+  noRegistrados: number;
+  listaNominal: number;
+  secciones: number;
+  participacion: number | null;
+}
+
 export const electionsService = {
+  /**
+   * Resultado completo de un municipio, de la fuerza más votada a la menos.
+   *
+   * Lo calcula la base (`resultado_municipio`): la cuenta vive dentro del jsonb
+   * de resultados y traerlo de todas las secciones del municipio serían varios
+   * MB por consulta.
+   *
+   * El total del acta cierra exacto —fuerzas + nulos + no registrados—, así que
+   * los porcentajes se calculan sobre el total oficial y la suma llega a 100 %
+   * sin tener que repartir ningún residuo.
+   */
+  async resultadoMunicipio(
+    municipio: string,
+    tipo = "ayuntamiento",
+    year?: number,
+  ): Promise<ResultadoMunicipio | null> {
+    const { data, error } = await supabase.rpc("resultado_municipio", {
+      _municipio: municipio,
+      _tipo: tipo,
+      ...(year ? { _year: year } : {}),
+    });
+    if (error) throw error;
+
+    const filas = (data as unknown as Array<Record<string, unknown>> | null) ?? [];
+    const primera = filas[0];
+    if (!primera) return null;
+
+    const totalVotos = Number(primera["total_votos"] ?? 0);
+    const listaNominal = Number(primera["lista_nominal"] ?? 0);
+
+    return {
+      anio: Number(primera["anio"] ?? 0),
+      eleccion: String(primera["eleccion"] ?? ""),
+      municipio,
+      fuerzas: filas.map((f) => ({
+        etiqueta: String(f["etiqueta"] ?? ""),
+        partidos: Array.isArray(f["partidos"])
+          ? (f["partidos"] as unknown[]).filter((p): p is string => typeof p === "string")
+          : [],
+        votos: Number(f["votos"] ?? 0),
+        seccionesGanadas: Number(f["secciones_ganadas"] ?? 0),
+        seccionesConVotos: Number(f["secciones_con_votos"] ?? 0),
+      })),
+      totalVotos,
+      votosNulos: Number(primera["votos_nulos"] ?? 0),
+      noRegistrados: Number(primera["no_registrados"] ?? 0),
+      listaNominal,
+      secciones: Number(primera["secciones_municipio"] ?? 0),
+      participacion:
+        listaNominal > 0 ? Math.round((totalVotos / listaNominal) * 10000) / 100 : null,
+    };
+  },
+
   /**
    * Desglose de votos de un partido, sección por sección.
    *

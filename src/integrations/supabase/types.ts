@@ -1739,6 +1739,23 @@ export type Database = {
         }
         Returns: string
       }
+      resultado_municipio: {
+        Args: { _municipio: string; _tipo?: string; _year?: number }
+        Returns: {
+          anio: number
+          eleccion: string
+          etiqueta: string
+          lista_nominal: number
+          no_registrados: number
+          partidos: string[]
+          secciones_con_votos: number
+          secciones_ganadas: number
+          secciones_municipio: number
+          total_votos: number
+          votos: number
+          votos_nulos: number
+        }[]
+      }
       siglas_de_coalicion: { Args: { _etiqueta: string }; Returns: string[] }
       tiene_permiso: { Args: { _permiso: string }; Returns: boolean }
       upsert_territorial_unit: {

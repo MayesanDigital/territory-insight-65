@@ -20,6 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ContactFormDialog } from "@/components/contact-form-dialog";
 import { SectionElectionComparison } from "@/components/section-election-comparison";
+import { MunicipioElectionSummary } from "@/components/municipio-election-summary";
 import { SectionContactBreakdown } from "@/components/section-contact-breakdown";
 import { SectionTeamBreakdown } from "@/components/section-team-breakdown";
 import { PovertySectionFilter } from "@/components/poverty-section-filter";
@@ -215,6 +216,18 @@ function MapaPage() {
     return total.seccionesConResultado > 0 ? total : null;
   }, [votosPartido.data, seccionesAmbito]);
 
+  /**
+   * Resultado del municipio acotado: quién ganó, con cuánto y quién quedó
+   * segundo. Es una pregunta distinta a la del ganador de cada sección, porque
+   * las secciones no pesan igual, y no tiene respuesta sin municipio elegido.
+   */
+  const resultadoMunicipio = useQuery({
+    queryKey: ["resultado-municipio", municipio, ELECCION.tipo, ELECCION.año],
+    queryFn: () => electionsService.resultadoMunicipio(municipio, ELECCION.tipo, ELECCION.año),
+    enabled: municipio !== "todos",
+    staleTime: 30 * 60 * 1000,
+  });
+
   // Índice de pobreza por sección (ya viene de la más pobre a la menos) y
   // pobreza oficial por municipio. Son datos de referencia que no cambian.
   const pobreza = useQuery({
@@ -287,6 +300,22 @@ function MapaPage() {
         title="Mapa territorial"
         description="Capas temáticas por sección. Toda la información demográfica se muestra agregada; nunca se representan personas individuales."
       />
+
+      {/* Resultado del municipio elegido. Se añade sin tocar nada de lo que ya
+          había: aparece solo al acotar por municipio y desaparece al volver a
+          todo el estado. */}
+      {municipio !== "todos" && (
+        <Card className="mb-4">
+          <CardContent className="p-4">
+            <MunicipioElectionSummary
+              municipio={municipio}
+              resultado={resultadoMunicipio.data ?? null}
+              cargando={resultadoMunicipio.isLoading}
+              error={resultadoMunicipio.error}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
         <Card className="overflow-hidden">
