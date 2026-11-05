@@ -36,6 +36,12 @@ export const PARTIDOS = [
   { siglas: "MC", nombre: "Movimiento Ciudadano" },
   { siglas: "NA", nombre: "Nueva Alianza" },
   { siglas: "PES", nombre: "PES" },
+  // Partidos locales presentes en los cómputos cargados. Se nombran con sus
+  // siglas porque la fuente no publica la razón social, y ponerles un nombre
+  // supuesto sería inventar un dato sobre una boleta real.
+  { siglas: "FMZ", nombre: "FMZ" },
+  { siglas: "RPZ", nombre: "RPZ" },
+  { siglas: "MAZ", nombre: "MAZ" },
 ] as const;
 
 /**
@@ -57,17 +63,16 @@ export const PARTIDO_COLOR: Record<string, string> = {
   MC: "#E8701A",
   NA: "#16A0A0",
   PES: "#6B3FA0",
+  FMZ: "#B07A5A",
+  RPZ: "#9A7B4F",
+  MAZ: "#7C8B6B",
 };
 
 /** Color del partido, con un gris de respaldo para siglas no catalogadas. */
 export const colorPartido = (siglas: string) => PARTIDO_COLOR[siglas] ?? "#6B6B6B";
 
 export type Clasificacion =
-  | "siempre_gana"
-  | "perdida"
-  | "conquistada"
-  | "siempre_pierde"
-  | "sin_historial";
+  "siempre_gana" | "perdida" | "conquistada" | "siempre_pierde" | "sin_historial";
 
 export const CLASIFICACION: Record<
   Clasificacion,
@@ -278,8 +283,12 @@ export const strategyService = {
         procesos: [],
         secciones: [],
         totales: {
-          secciones: 0, listaNominal: 0, votosEmitidos: 0,
-          votosPartido: 0, porcentajePartido: 0, participacion: 0,
+          secciones: 0,
+          listaNominal: 0,
+          votosEmitidos: 0,
+          votosPartido: 0,
+          porcentajePartido: 0,
+          participacion: 0,
         },
         tendenciaMedia: null,
       };
@@ -411,7 +420,9 @@ export const strategyService = {
         listaNominal,
         votosEmitidos,
         votosPartido,
-        porcentajePartido: votosEmitidos ? Math.round((votosPartido / votosEmitidos) * 1000) / 10 : 0,
+        porcentajePartido: votosEmitidos
+          ? Math.round((votosPartido / votosEmitidos) * 1000) / 10
+          : 0,
         participacion: listaNominal ? Math.round((votosEmitidos / listaNominal) * 1000) / 10 : 0,
       },
       tendenciaMedia: conTendencia.length

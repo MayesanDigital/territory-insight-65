@@ -48,6 +48,23 @@ function colorDe(siglas: string | undefined) {
   return (siglas && COLOR_PARTIDO[siglas.toUpperCase()]) || COLOR_NEUTRO;
 }
 
+/**
+ * Integrantes de una columna de combinación.
+ *
+ * El IEEZ rotula las combinaciones uniendo siglas con guion ("PVEM-MORENA") y
+ * escribe NAZ donde la columna propia se llama NA. Hay que partir por el guion
+ * y comparar token por token: buscar la sigla como subcadena encontraría "NA"
+ * dentro de "MORENA" y le adjudicaría votos que no son suyos.
+ */
+function siglasDeCoalicion(etiqueta: string): string[] {
+  return etiqueta
+    .toUpperCase()
+    .split("-")
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .map((t) => (t === "NAZ" ? "NA" : t));
+}
+
 export function SectionElectionComparison({ sectionCode }: { sectionCode: string }) {
   const q = useQuery({
     queryKey: ["elecciones", sectionCode],
@@ -81,9 +98,9 @@ export function SectionElectionComparison({ sectionCode }: { sectionCode: string
             ))}
           </div>
           <p className="mt-2 text-[10px] leading-snug text-muted-foreground">
-            Fuerza más votada en esta sección, no quien ganó el municipio. Las coaliciones
-            se detectan municipio por municipio: donde los partidos compitieron por
-            separado, cada uno aparece con su propia cifra.
+            Fuerza más votada en esta sección, no quien ganó el municipio. Las coaliciones se
+            detectan municipio por municipio: donde los partidos compitieron por separado, cada uno
+            aparece con su propia cifra.
           </p>
         </>
       )}
@@ -139,6 +156,11 @@ function FilaEleccion({ proceso }: { proceso: ResultadoSeccion }) {
         {segundo ? `${margen.toFixed(1)} pts sobre ${segundo.etiqueta}` : "sin rival"}
       </p>
 
+      {/* De qué está hecho el total del bloque ganador.
+          Sin esto, la cifra de la coalición parece de un solo partido: al ver
+          "Morena-PVEM 304" no se distingue qué sacó cada uno por su cuenta. */}
+      {esCoalicion && <DesgloseBloque proceso={proceso} bloque={ganador} />}
+
       {/* Resumen de participación de la sección en ese proceso. */}
       <div className="mt-2 grid grid-cols-3 gap-1.5 rounded-md bg-background px-2 py-1.5 text-center">
         <Dato etiqueta="Votos" valor={fmt(proceso.totalVotos)} />
@@ -156,11 +178,7 @@ function FilaEleccion({ proceso }: { proceso: ResultadoSeccion }) {
             onClick={() => setAbierto((v) => !v)}
             className="flex w-full items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground"
           >
-            {abierto ? (
-              <ChevronDown className="h-3 w-3" />
-            ) : (
-              <ChevronRight className="h-3 w-3" />
-            )}
+            {abierto ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
             Votos por partido ({proceso.partidos.length})
           </button>
 
@@ -216,14 +234,93 @@ function FilaEleccion({ proceso }: { proceso: ResultadoSeccion }) {
 
               {votosCoalicion > 0 && (
                 <p className="pt-1 text-[10px] leading-snug text-muted-foreground">
-                  El voto conjunto no pertenece a ningún partido en solitario: se emite
-                  marcando varios aliados a la vez en la misma boleta.
+                  El voto conjunto no pertenece a ningún partido en solitario: se emite marcando
+                  varios aliados a la vez en la misma boleta.
                 </p>
               )}
             </div>
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Descompone el total de una coalición en sus partes verificables.
+ *
+ * Cada integrante aporta su columna propia del acta, y las boletas que marcaron
+ * a varios aliados a la vez van en columnas de combinación que pertenecen a la
+ * alianza, no a un partido. La suma de todo eso es el total del bloque: es el
+ * cuadre que permite comprobar la cifra en lugar de creerla.
+ */
+function DesgloseBloque({
+  proceso,
+  bloque,
+}: {
+  proceso: ResultadoSeccion;
+  bloque: ResultadoSeccion["bloques"][number];
+}) {
+  const miembros = bloque.partidos ?? [];
+  if (miembros.length < 2) return null;
+
+  const propios = proceso.partidos.filter((p) => miembros.includes(p.siglas.toUpperCase()));
+  // Solo las combinaciones que quedan dentro del bloque: una columna con un
+  // partido ajeno pertenecería a otra alianza.
+  const conjuntas = proceso.coaliciones.filter((c) => {
+    const integrantes = siglasDeCoalicion(c.siglas);
+    return integrantes.length > 1 && integrantes.every((t) => miembros.includes(t));
+  });
+
+  const suma =
+    propios.reduce((a, p) => a + p.votos, 0) + conjuntas.reduce((a, c) => a + c.votos, 0);
+  const descuadre = bloque.votos - suma;
+
+  return (
+    <div className="mt-1.5 rounded-md border border-border/60 bg-muted/30 px-2 py-1.5">
+      <p className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+        De dónde salen esos {fmt(bloque.votos)} votos
+      </p>
+
+      {propios.map((p) => (
+        <div key={p.siglas} className="flex items-center gap-2 text-[11px]">
+          <span
+            className="h-1.5 w-1.5 shrink-0 rounded-full"
+            style={{ backgroundColor: colorDe(p.siglas) }}
+          />
+          <span className="flex-1 truncate" translate="no">
+            {p.nombre} <span className="text-muted-foreground">solo</span>
+          </span>
+          <span className="tabular-nums">{fmt(p.votos)}</span>
+        </div>
+      ))}
+
+      {conjuntas.map((c) => (
+        <div key={c.siglas} className="flex items-center gap-2 text-[11px]">
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/40" />
+          <span className="flex-1 truncate text-muted-foreground" translate="no">
+            {c.siglas} <span>juntos</span>
+          </span>
+          <span className="tabular-nums">{fmt(c.votos)}</span>
+        </div>
+      ))}
+
+      {/* El descuadre se muestra en vez de repartirlo: si la fuente trae una
+          columna que no encaja, inventar un reparto la volvería irreproducible. */}
+      {descuadre !== 0 && (
+        <div className="flex items-center gap-2 text-[11px] text-destructive">
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-destructive/60" />
+          <span className="flex-1">Sin clasificar en el acta</span>
+          <span className="tabular-nums">{fmt(descuadre)}</span>
+        </div>
+      )}
+
+      <p className="mt-1 border-t border-border/60 pt-1 text-[10px] leading-snug text-muted-foreground">
+        Las columnas <strong>solo</strong> son voto exclusivo de cada partido. Las{" "}
+        <strong>juntos</strong> se emitieron marcando a varios aliados en la misma boleta: cuentan
+        para la coalición y la ley las reparte entre sus integrantes, así que no son de ninguno en
+        exclusiva.
+      </p>
     </div>
   );
 }

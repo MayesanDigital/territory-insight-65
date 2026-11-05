@@ -1640,6 +1640,7 @@ export type Database = {
           votos_emitidos: number
         }[]
       }
+      siglas_de_coalicion: { Args: { _etiqueta: string }; Returns: string[] }
       tiene_permiso: { Args: { _permiso: string }; Returns: boolean }
       upsert_territorial_unit: {
         Args: {
@@ -1655,6 +1656,19 @@ export type Database = {
           _year: number
         }
         Returns: string
+      }
+      votos_partido_por_seccion: {
+        Args: { _siglas: string; _tipo?: string; _year?: number }
+        Returns: {
+          bloque: string
+          bloque_votos: number
+          coalicion: number
+          gano: boolean
+          integrantes: number
+          propios: number
+          section_code: string
+          total_votos: number
+        }[]
       }
     }
     Enums: {

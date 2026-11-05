@@ -95,50 +95,120 @@ function aResultado(row: SectionElectionRow): ResultadoSeccion {
   };
 }
 
-/** Lo que un partido logró en una elección: secciones ganadas y votos. */
+/**
+ * Votos de un partido en una sección, sin mezclar lo propio con lo ajeno.
+ *
+ * En una coalición el voto se reparte entre la columna de cada partido y las
+ * columnas de las combinaciones marcadas en la boleta. Reportar el total del
+ * bloque como "votos del partido" le atribuye los de su aliado: el PVEM salía
+ * con 200,780 votos en los ayuntamientos de 2024 cuando su columna propia suma
+ * 40,683. Por eso las tres cifras viajan separadas.
+ */
+export interface VotosPartidoSeccion {
+  seccion: string;
+  /** Su columna en el acta. Voto exclusivo del partido. */
+  propios: number;
+  /**
+   * Columnas de combinación donde aparece. Voto emitido marcando a varios
+   * aliados a la vez: cuenta para la coalición y la ley lo reparte entre sus
+   * integrantes, así que no es voto exclusivo del partido.
+   */
+  coalicion: number;
+  /** Total de la fuerza que llevó la candidatura. Es la que decide la sección. */
+  bloqueVotos: number;
+  /** Etiqueta de esa fuerza, o nulo si el partido no compitió en la sección. */
+  bloque: string | null;
+  /** Partidos que integraban la fuerza. 1 significa que compitió solo. */
+  integrantes: number;
+  /** La fuerza que lo llevaba fue la más votada de la sección. */
+  gano: boolean;
+  /** Votos emitidos en la sección, para calcular porcentajes. */
+  totalVotos: number;
+}
+
+/** Suma de un conjunto de secciones para el resumen del mapa. */
 export interface ResumenPartido {
-  anio: number;
-  etiqueta: string;
   seccionesGanadas: number;
   seccionesConResultado: number;
-  votos: number;
+  /** Secciones donde el partido fue en coalición. */
+  seccionesEnCoalicion: number;
+  propios: number;
+  coalicion: number;
+  bloqueVotos: number;
   votosEmitidos: number;
+}
+
+/**
+ * Agrega el desglose de las secciones indicadas.
+ *
+ * Se suma en el navegador y no en la base para que acotar por municipio no
+ * cueste otra consulta y para que el resumen cuadre exactamente con lo que el
+ * mapa tiene dibujado.
+ */
+export function resumePartido(
+  filas: VotosPartidoSeccion[],
+  secciones?: Set<string>,
+): ResumenPartido {
+  const total: ResumenPartido = {
+    seccionesGanadas: 0,
+    seccionesConResultado: 0,
+    seccionesEnCoalicion: 0,
+    propios: 0,
+    coalicion: 0,
+    bloqueVotos: 0,
+    votosEmitidos: 0,
+  };
+
+  for (const f of filas) {
+    if (secciones && !secciones.has(f.seccion)) continue;
+    total.seccionesConResultado += 1;
+    if (f.gano) total.seccionesGanadas += 1;
+    if (f.integrantes > 1) total.seccionesEnCoalicion += 1;
+    total.propios += f.propios;
+    total.coalicion += f.coalicion;
+    total.bloqueVotos += f.bloqueVotos;
+    total.votosEmitidos += f.totalVotos;
+  }
+
+  return total;
 }
 
 export const electionsService = {
   /**
-   * Resumen de un partido en la elección más reciente del tipo indicado.
+   * Desglose de votos de un partido, sección por sección.
    *
-   * Lo calcula la base (`resumen_partido`): la cuenta vive dentro del jsonb de
-   * resultados y traerlo de ~1,800 secciones serían varios MB por consulta.
-   *
-   * Los votos son los del bloque que llevaba al partido en cada municipio, así
-   * que los de dos partidos coaligados no se pueden sumar entre sí.
+   * La descomposición la hace la base (`votos_partido_por_seccion`): vive dentro
+   * del jsonb de resultados y traer esa columna de ~1,800 secciones serían
+   * varios MB por consulta. Aquí vuelven solo ocho campos por sección, que
+   * alimentan a la vez el resumen del mapa y la ficha de cada sección.
    */
-  async resumenPartido(
+  async votosPorSeccion(
     siglas: string,
     tipo = "ayuntamiento",
-    municipio?: string | null,
-  ): Promise<ResumenPartido | null> {
-    const acotado = municipio && municipio !== "todos" ? municipio : null;
-    const { data, error } = await supabase.rpc("resumen_partido", {
+    year?: number,
+  ): Promise<Record<string, VotosPartidoSeccion>> {
+    const { data, error } = await supabase.rpc("votos_partido_por_seccion", {
       _siglas: siglas,
       _tipo: tipo,
-      // Sin municipio la función resume todo el estado; la clave se omite para
-      // que tome su valor por omisión en vez de recibir un nulo explícito.
-      ...(acotado ? { _municipio: acotado } : {}),
+      ...(year ? { _year: year } : {}),
     });
     if (error) throw error;
-    const fila = (data as unknown as Array<Record<string, number | string>> | null)?.[0];
-    if (!fila || !fila["anio"]) return null;
-    return {
-      anio: Number(fila["anio"]),
-      etiqueta: String(fila["etiqueta"] ?? ""),
-      seccionesGanadas: Number(fila["secciones_ganadas"] ?? 0),
-      seccionesConResultado: Number(fila["secciones_con_resultado"] ?? 0),
-      votos: Number(fila["votos"] ?? 0),
-      votosEmitidos: Number(fila["votos_emitidos"] ?? 0),
-    };
+
+    const mapa: Record<string, VotosPartidoSeccion> = {};
+    for (const fila of (data as unknown as Array<Record<string, unknown>> | null) ?? []) {
+      const seccion = String(fila["section_code"]);
+      mapa[seccion] = {
+        seccion,
+        propios: Number(fila["propios"] ?? 0),
+        coalicion: Number(fila["coalicion"] ?? 0),
+        bloqueVotos: Number(fila["bloque_votos"] ?? 0),
+        bloque: (fila["bloque"] as string | null) ?? null,
+        integrantes: Number(fila["integrantes"] ?? 0),
+        gano: Boolean(fila["gano"]),
+        totalVotos: Number(fila["total_votos"] ?? 0),
+      };
+    }
+    return mapa;
   },
 
   /** Resultados de una sección, del proceso más antiguo al más reciente. */
@@ -196,10 +266,7 @@ export const electionsService = {
    * estado tiene más secciones que eso: sin esto, faltaría el ganador en un
    * tercio del mapa sin ningún aviso.
    */
-  async ganadores(
-    year: number,
-    electionType: string,
-  ): Promise<Record<string, GanadorSeccion>> {
+  async ganadores(year: number, electionType: string): Promise<Record<string, GanadorSeccion>> {
     const PAGINA = 1000;
     const mapa: Record<string, GanadorSeccion> = {};
 

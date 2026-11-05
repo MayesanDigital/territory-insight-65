@@ -26,15 +26,18 @@ import { PovertySectionFilter } from "@/components/poverty-section-filter";
 import { SectionPovertyDetail } from "@/components/section-poverty-detail";
 import { territoryService } from "@/services/territoryService";
 import { contactsService } from "@/services/contactsService";
-import { electionsService } from "@/services/electionsService";
+import { electionsService, resumePartido } from "@/services/electionsService";
 import { campaignService } from "@/services/campaignService";
 import { claveMunicipio, povertyService, type PobrezaSeccion } from "@/services/povertyService";
 import { colorPartido, PARTIDOS } from "@/services/strategyService";
-import type { ResumenPartido as ResumenPartidoDatos } from "@/services/electionsService";
+import type {
+  ResumenPartido as ResumenPartidoDatos,
+  VotosPartidoSeccion,
+} from "@/services/electionsService";
 import { useAuth } from "@/hooks/useAuth";
 import { CENSUS_DISPLAY_LABEL, type TerritorialUnit, type TerritorialUnitDetailed } from "@/types";
 import type { MapHighlight, MapMetric, SectionContacts } from "@/components/territory-map";
-import { SIN_CONTACTOS } from "@/components/territory-map";
+import { SIN_CONTACTOS, SIN_NOMINAL, SIN_VOTOS_PARTIDO } from "@/components/territory-map";
 
 const TerritoryMap = lazy(() => import("@/components/territory-map"));
 
@@ -130,9 +133,7 @@ function MapaPage() {
   // Contactos de la sección seleccionada, para el desglose por equipo.
   const contactosSeccion = useMemo(
     () =>
-      selected
-        ? (contacts.data ?? []).filter((c) => c.section_code === selected.section_code)
-        : [],
+      selected ? (contacts.data ?? []).filter((c) => c.section_code === selected.section_code) : [],
     [contacts.data, selected],
   );
 
@@ -183,12 +184,36 @@ function MapaPage() {
     };
   }, [partido, winners.data]);
 
-  // Secciones ganadas y votos del partido, acotados al municipio elegido.
-  const resumen = useQuery({
-    queryKey: ["resumen-partido", partido, municipio],
-    queryFn: () => electionsService.resumenPartido(partido, ELECCION.tipo, municipio),
+  // Desglose de votos del partido, sección por sección: su columna propia, las
+  // combinaciones donde aparece y el total del bloque que lo llevó. Se pide una
+  // vez por partido y sirve para el resumen y para la ficha de cada sección.
+  const votosPartido = useQuery({
+    queryKey: ["votos-partido", partido, ELECCION.tipo, ELECCION.año],
+    queryFn: () => electionsService.votosPorSeccion(partido, ELECCION.tipo, ELECCION.año),
     enabled: partido !== SIN_PARTIDO,
+    staleTime: 30 * 60 * 1000,
   });
+
+  /**
+   * Secciones del ámbito elegido, para sumar el resumen sobre ellas.
+   *
+   * Se usa el municipio y no el texto buscado: el resumen responde a "cómo le
+   * fue al partido aquí", y recalcularlo mientras se teclea una búsqueda daría
+   * una cifra distinta en cada pulsación.
+   */
+  const seccionesAmbito = useMemo(() => {
+    if (municipio === "todos") return undefined;
+    return new Set(
+      (units.data ?? []).filter((u) => u.municipio === municipio).map((u) => u.section_code),
+    );
+  }, [units.data, municipio]);
+
+  const resumen = useMemo(() => {
+    const filas = votosPartido.data;
+    if (!filas) return null;
+    const total = resumePartido(Object.values(filas), seccionesAmbito);
+    return total.seccionesConResultado > 0 ? total : null;
+  }, [votosPartido.data, seccionesAmbito]);
 
   // Índice de pobreza por sección (ya viene de la más pobre a la menos) y
   // pobreza oficial por municipio. Son datos de referencia que no cambian.
@@ -235,7 +260,8 @@ function MapaPage() {
   const cambiarMunicipio = (m: string) => {
     setMunicipio(m);
     // La sección elegida por pobreza deja de tener sentido fuera de su municipio.
-    if (seccionPobreza && m !== "todos" && municipioDe[seccionPobreza] !== m) setSeccionPobreza(null);
+    if (seccionPobreza && m !== "todos" && municipioDe[seccionPobreza] !== m)
+      setSeccionPobreza(null);
   };
 
   const municipios = useMemo(
@@ -248,7 +274,9 @@ function MapaPage() {
       (units.data ?? []).filter(
         (u) =>
           (municipio === "todos" || u.municipio === municipio) &&
-          (!search || u.section_code.includes(search) || u.municipio.toLowerCase().includes(search.toLowerCase())),
+          (!search ||
+            u.section_code.includes(search) ||
+            u.municipio.toLowerCase().includes(search.toLowerCase())),
       ),
     [units.data, municipio, search],
   );
@@ -339,8 +367,9 @@ function MapaPage() {
               nombre={resalte.nombre}
               color={resalte.color}
               ambito={municipio === "todos" ? "todo el estado" : municipio}
-              resumen={resumen.data ?? null}
-              cargando={resumen.isLoading}
+              etiqueta={resalte.etiqueta}
+              resumen={resumen}
+              cargando={votosPartido.isLoading}
             />
           )}
 
@@ -378,8 +407,9 @@ function MapaPage() {
                     goals={goals.data ?? {}}
                     metric={metric}
                     poverty={pobrezaPorSeccion}
-                    listaNominal={listaNominal.data ?? {}}
+                    listaNominal={listaNominal.data ?? SIN_NOMINAL}
                     highlight={resalte}
+                    partyVotes={votosPartido.data ?? SIN_VOTOS_PARTIDO}
                     focusRequest={focusRequest}
                     selectedId={selected?.id ?? null}
                     onSelect={setSelected}
@@ -408,10 +438,7 @@ function MapaPage() {
               <>
                 <Row label="Municipio" value={selected.municipio} />
                 <Row label="Localidad" value={selected.localidad ?? "—"} />
-                <Row
-                  label="Población"
-                  value={(selected.population ?? 0).toLocaleString("es-MX")}
-                />
+                <Row label="Población" value={(selected.population ?? 0).toLocaleString("es-MX")} />
                 <Row label="Hogares" value={(selected.households ?? 0).toLocaleString("es-MX")} />
                 <Row
                   label="Contactos"
@@ -551,7 +578,11 @@ function MapaPage() {
                       />
                       <Row
                         label="Mujeres por cada 100 hombres"
-                        value={selected.men ? Math.round((selected.women / selected.men) * 100).toString() : "—"}
+                        value={
+                          selected.men
+                            ? Math.round((selected.women / selected.men) * 100).toString()
+                            : "—"
+                        }
                       />
                       <Row
                         label="Población adulta (18+)"
@@ -606,46 +637,53 @@ function MapaPage() {
 const fmt = (n: number) => n.toLocaleString("es-MX");
 
 /**
- * Lo que logró el partido resaltado: secciones ganadas y votos.
+ * Lo que logró el partido resaltado, con los votos desglosados.
  *
  * Va junto a los filtros y no en la ficha lateral porque responde a la
  * selección, no a la sección que se esté viendo, y se mueve con el municipio.
+ *
+ * Las tres cifras se muestran separadas a propósito. Antes se publicaba una
+ * sola —la del bloque— y eso le adjudicaba al partido los votos de su aliado:
+ * el PVEM aparecía con 200,780 votos en los ayuntamientos de 2024 cuando su
+ * columna propia suma 40,683. Las tres son ciertas, pero responden a preguntas
+ * distintas y mezclarlas convierte el dato en una cifra inservible.
  */
 function ResumenPartido({
   nombre,
   color,
   ambito,
+  etiqueta,
   resumen,
   cargando,
 }: {
   nombre: string;
   color: string;
   ambito: string;
+  etiqueta: string;
   resumen: ResumenPartidoDatos | null;
   cargando: boolean;
 }) {
-  const pctSecciones =
-    resumen && resumen.seccionesConResultado > 0
-      ? Math.round((resumen.seccionesGanadas / resumen.seccionesConResultado) * 1000) / 10
-      : 0;
-  const pctVotos =
-    resumen && resumen.votosEmitidos > 0
-      ? Math.round((resumen.votos / resumen.votosEmitidos) * 1000) / 10
-      : 0;
+  const pct = (parte: number, total: number) =>
+    total > 0 ? Math.round((parte / total) * 1000) / 10 : 0;
+
+  const hayCoalicion = (resumen?.seccionesEnCoalicion ?? 0) > 0;
+  // Lo que en el bloque no salió ni de la columna propia ni de las
+  // combinaciones es, por definición, voto de los aliados.
+  const deAliados = resumen
+    ? Math.max(0, resumen.bloqueVotos - resumen.propios - resumen.coalicion)
+    : 0;
 
   return (
-    <div className="mx-6 mb-3 rounded-md border border-border bg-muted/40 p-3">
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+    <div className="mx-4 mb-3 rounded-md border border-border bg-muted/40 p-3 sm:mx-6">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         <span className="flex items-center gap-2 font-medium">
           <span
-            className="h-3 w-3 rounded-sm border border-black/20"
+            className="h-3 w-3 shrink-0 rounded-sm border border-black/20"
             style={{ backgroundColor: color }}
           />
-          {nombre}
+          <span translate="no">{nombre}</span>
         </span>
-
         {cargando && <span className="text-sm text-muted-foreground">Contando votos…</span>}
-
         {!cargando && resumen && (
           <>
             <span className="text-sm">
@@ -653,23 +691,15 @@ function ResumenPartido({
                 {fmt(resumen.seccionesGanadas)}
               </span>{" "}
               <span className="text-muted-foreground">
-                de {fmt(resumen.seccionesConResultado)} secciones ganadas ({pctSecciones}%)
+                de {fmt(resumen.seccionesConResultado)} secciones ganadas (
+                {pct(resumen.seccionesGanadas, resumen.seccionesConResultado)}%)
               </span>
             </span>
-            <span className="text-sm">
-              <span className="font-display text-lg font-semibold tabular-nums">
-                {fmt(resumen.votos)}
-              </span>{" "}
-              <span className="text-muted-foreground">
-                votos de {fmt(resumen.votosEmitidos)} emitidos ({pctVotos}%)
-              </span>
-            </span>
-            <span className="ml-auto text-xs text-muted-foreground">
-              {resumen.etiqueta} · {ambito}
+            <span className="text-xs text-muted-foreground sm:ml-auto">
+              {etiqueta} · {ambito}
             </span>
           </>
         )}
-
         {!cargando && !resumen && (
           <span className="text-sm text-muted-foreground">
             Sin cómputos cargados para este ámbito.
@@ -677,10 +707,100 @@ function ResumenPartido({
         )}
       </div>
 
-      {/* Los votos son los del bloque que llevaba al partido en cada municipio:
-          donde hubo coalición, la cifra es la de la alianza completa. */}
-      <p className="mt-1 text-[11px] text-muted-foreground">
-        Incluye los votos de la coalición que llevó a {nombre} en cada municipio.
+      {!cargando && resumen && (
+        <>
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            <CifraVoto
+              titulo="Votos propios"
+              detalle="Su columna en el acta"
+              votos={resumen.propios}
+              porcentaje={pct(resumen.propios, resumen.votosEmitidos)}
+              color={color}
+              destacada
+            />
+            <CifraVoto
+              titulo="Votos en coalición"
+              detalle={
+                hayCoalicion
+                  ? "Boletas marcando a varios aliados"
+                  : "No concurrió en coalición en este ámbito"
+              }
+              votos={resumen.coalicion}
+              porcentaje={pct(resumen.coalicion, resumen.votosEmitidos)}
+              color="#8A8A8A"
+              compartida
+            />
+            <CifraVoto
+              titulo="Total del bloque"
+              detalle={
+                hayCoalicion
+                  ? `Incluye ${fmt(deAliados)} de los aliados`
+                  : "Compitió solo: igual a su columna"
+              }
+              votos={resumen.bloqueVotos}
+              porcentaje={pct(resumen.bloqueVotos, resumen.votosEmitidos)}
+              color="#B9AFA0"
+            />
+          </div>
+
+          <p className="mt-2 text-[11px] leading-snug text-muted-foreground">
+            <strong>Votos propios</strong> son los de la columna de{" "}
+            <span translate="no">{nombre}</span>: voto exclusivo suyo. Los{" "}
+            <strong>votos en coalición</strong> se emitieron marcando a varios aliados en la misma
+            boleta, cuentan para la alianza y la ley los reparte entre sus integrantes, así que no
+            son suyos en exclusiva. El <strong>total del bloque</strong> es la cifra que decide
+            quién ganó la sección y suma las columnas de todos los aliados; por eso no se pueden
+            sumar los totales de dos partidos coaligados.
+            {hayCoalicion &&
+              ` ${nombre} fue en coalición en ${fmt(resumen.seccionesEnCoalicion)} de ${fmt(
+                resumen.seccionesConResultado,
+              )} secciones de este ámbito.`}
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Una de las tres cantidades del desglose, con su porcentaje de lo emitido. */
+function CifraVoto({
+  titulo,
+  detalle,
+  votos,
+  porcentaje,
+  color,
+  destacada = false,
+  compartida = false,
+}: {
+  titulo: string;
+  detalle: string;
+  votos: number;
+  porcentaje: number;
+  color: string;
+  destacada?: boolean;
+  compartida?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-md border bg-card px-3 py-2 ${
+        destacada ? "border-foreground/25" : "border-border/60"
+      }`}
+    >
+      <div className="flex items-center gap-1.5">
+        <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+        <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          {titulo}
+        </span>
+      </div>
+      <p className="mt-0.5 font-display text-xl font-semibold tabular-nums">
+        {fmt(votos)}
+        <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+          {porcentaje}% de lo emitido
+        </span>
+      </p>
+      <p className="text-[10px] leading-snug text-muted-foreground">
+        {compartida ? "Compartido · " : ""}
+        {detalle}
       </p>
     </div>
   );

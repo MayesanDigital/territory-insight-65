@@ -31,7 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { SIN_CONTACTOS, type SectionContacts } from "@/components/territory-map";
+import { SIN_CONTACTOS, SIN_NOMINAL, type SectionContacts } from "@/components/territory-map";
 import type { TerritorialUnit, TerritorialUnitDetailed } from "@/types";
 
 /* El mapa carga aparte: Leaflet y sus estilos pesan más que el resto de la
@@ -129,20 +129,19 @@ function SeccionesPage() {
 
   const rows = useMemo(
     () =>
-      visibles
-        .map((u) => ({
-          id: u.id,
-          seccion: u.section_code,
-          municipio: u.municipio,
-          listaNominal: listaNominal.data?.[u.section_code] ?? 0,
-          poblacion: u.population ?? 0,
-          sinCenso: !u.has_demographics,
-          hogares: u.households ?? 0,
-          contactos: counts[u.section_code] ?? 0,
-          cobertura: u.population
-            ? (((counts[u.section_code] ?? 0) / u.population) * 100).toFixed(2)
-            : "0.00",
-        })),
+      visibles.map((u) => ({
+        id: u.id,
+        seccion: u.section_code,
+        municipio: u.municipio,
+        listaNominal: listaNominal.data?.[u.section_code] ?? 0,
+        poblacion: u.population ?? 0,
+        sinCenso: !u.has_demographics,
+        hogares: u.households ?? 0,
+        contactos: counts[u.section_code] ?? 0,
+        cobertura: u.population
+          ? (((counts[u.section_code] ?? 0) / u.population) * 100).toFixed(2)
+          : "0.00",
+      })),
     [visibles, counts, listaNominal.data],
   );
 
@@ -235,7 +234,7 @@ function SeccionesPage() {
                     units={visibles}
                     geometryById={geometryById}
                     contactCounts={carteras}
-                    listaNominal={listaNominal.data ?? {}}
+                    listaNominal={listaNominal.data ?? SIN_NOMINAL}
                     metric="nominal"
                     selectedId={seleccionada?.id ?? null}
                     focusRequest={centrar}
@@ -248,8 +247,7 @@ function SeccionesPage() {
 
           {seleccionada && (
             <p className="text-xs text-muted-foreground">
-              Sección <strong>{seleccionada.section_code}</strong> · {seleccionada.municipio} ·
-              {" "}
+              Sección <strong>{seleccionada.section_code}</strong> · {seleccionada.municipio} ·{" "}
               {(listaNominal.data?.[seleccionada.section_code] ?? 0).toLocaleString("es-MX")} en
               lista nominal · {(carteras[seleccionada.section_code] ?? SIN_CONTACTOS).total}{" "}
               contactos
@@ -290,52 +288,54 @@ function SeccionesPage() {
             />
           ) : (
             <>
-            <p className="mb-2 text-xs text-muted-foreground">
-              La <strong>lista nominal</strong> es el padrón electoral de 2024. La{" "}
-              <strong>cobertura</strong> se calcula sobre la población del censo INE-ECEG 2020,
-              que incluye menores; la columna de población se retiró de la vista, pero sigue en
-              la exportación a CSV.
-            </p>
-            <div className="max-h-[600px] overflow-auto rounded-md border border-border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Sección</TableHead>
-                    <TableHead>Municipio</TableHead>
-                    <TableHead className="text-right">Lista nominal 2024</TableHead>
-                    <TableHead className="text-right">Hogares</TableHead>
-                    <TableHead className="text-right">Contactos</TableHead>
-                    <TableHead className="text-right">Cobertura s/ población</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rows.map((r) => (
-                    <TableRow
-                      key={r.seccion}
-                      // Pulsar la fila lleva esa sección al mapa de arriba: es
-                      // la forma natural de pasar del dato al territorio.
-                      onClick={() => mostrarEnMapa(r.id)}
-                      className={`cursor-pointer ${
-                        seleccionada?.section_code === r.seccion ? "bg-muted" : ""
-                      }`}
-                    >
-                      <TableCell className="font-medium">{r.seccion}</TableCell>
-                      <TableCell>{r.municipio}</TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {r.listaNominal
-                          ? r.listaNominal.toLocaleString("es-MX")
-                          : <span className="text-muted-foreground">—</span>}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {r.hogares.toLocaleString("es-MX")}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">{r.contactos}</TableCell>
-                      <TableCell className="text-right tabular-nums">{r.cobertura}%</TableCell>
+              <p className="mb-2 text-xs text-muted-foreground">
+                La <strong>lista nominal</strong> es el padrón electoral de 2024. La{" "}
+                <strong>cobertura</strong> se calcula sobre la población del censo INE-ECEG 2020,
+                que incluye menores; la columna de población se retiró de la vista, pero sigue en la
+                exportación a CSV.
+              </p>
+              <div className="max-h-[600px] overflow-auto rounded-md border border-border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Sección</TableHead>
+                      <TableHead>Municipio</TableHead>
+                      <TableHead className="text-right">Lista nominal 2024</TableHead>
+                      <TableHead className="text-right">Hogares</TableHead>
+                      <TableHead className="text-right">Contactos</TableHead>
+                      <TableHead className="text-right">Cobertura s/ población</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.map((r) => (
+                      <TableRow
+                        key={r.seccion}
+                        // Pulsar la fila lleva esa sección al mapa de arriba: es
+                        // la forma natural de pasar del dato al territorio.
+                        onClick={() => mostrarEnMapa(r.id)}
+                        className={`cursor-pointer ${
+                          seleccionada?.section_code === r.seccion ? "bg-muted" : ""
+                        }`}
+                      >
+                        <TableCell className="font-medium">{r.seccion}</TableCell>
+                        <TableCell>{r.municipio}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {r.listaNominal ? (
+                            r.listaNominal.toLocaleString("es-MX")
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {r.hogares.toLocaleString("es-MX")}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{r.contactos}</TableCell>
+                        <TableCell className="text-right tabular-nums">{r.cobertura}%</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </>
           )}
         </CardContent>

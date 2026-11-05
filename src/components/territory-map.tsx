@@ -4,7 +4,7 @@ import "leaflet/dist/leaflet.css";
 
 import type { Json } from "@/integrations/supabase/types";
 import { CENSUS_DISPLAY_LABEL, type TerritorialUnit } from "@/types";
-import type { GanadorSeccion } from "@/services/electionsService";
+import type { GanadorSeccion, VotosPartidoSeccion } from "@/services/electionsService";
 import {
   GRADO_COLOR,
   GRADO_ETIQUETA,
@@ -13,13 +13,7 @@ import {
 } from "@/services/povertyService";
 
 export type MapMetric =
-  | "population"
-  | "nominal"
-  | "households"
-  | "contacts"
-  | "coverage"
-  | "density"
-  | "poverty";
+  "population" | "nominal" | "households" | "contacts" | "coverage" | "density" | "poverty";
 
 /**
  * Contactos de una sección, desglosados por categoría de seguimiento.
@@ -78,6 +72,11 @@ interface Props {
   poverty?: Record<string, PobrezaSeccion>;
   /** Partido cuyo territorio ganado se resalta. Nulo deja la capa temática. */
   highlight?: MapHighlight | null;
+  /**
+   * Desglose de votos del partido resaltado, por sección. Lo lee el popup para
+   * no atribuirle al partido los votos del bloque que lo llevaba.
+   */
+  partyVotes?: Record<string, VotosPartidoSeccion>;
   selectedId?: string | null;
   /**
    * Pide centrar el mapa en una sección y abrir su ficha. `n` cambia en cada
@@ -95,7 +94,17 @@ const SCALE = ["#F1E7D8", "#E0C89B", "#C79E5E", "#A8763E", "#7A4E23"];
 const SELECTED = "#7A2E2E";
 const SIN_DATO = "#D6D3CE";
 const SIN_POBREZA: Record<string, PobrezaSeccion> = {};
-const SIN_NOMINAL: Record<string, number> = {};
+/**
+ * Respaldos vacíos, exportados a propósito.
+ *
+ * Alimentan estas capas desde una consulta que empieza en `undefined`, y
+ * escribir `datos ?? {}` en el padre crea un objeto nuevo en cada render: ese
+ * objeto entra en las dependencias del dibujo y manda a redibujar las ~1,800
+ * capas sin parar, que es lo que agotaba la memoria del navegador en móvil.
+ * Con una constante estable el render no mueve nada.
+ */
+export const SIN_NOMINAL: Record<string, number> = {};
+export const SIN_VOTOS_PARTIDO: Record<string, VotosPartidoSeccion> = {};
 const BORDER = "#8b7a5f";
 /** Gris del territorio que ganó otra fuerza, en modo resalte. */
 const NO_GANADA = "#CFCAC2";
@@ -155,9 +164,11 @@ function buildPopup(
   goal?: number,
   pobreza?: PobrezaSeccion,
   nominal?: number,
+  partido?: { nombre: string; color: string } | null,
+  votos?: VotosPartidoSeccion,
 ): HTMLElement {
   const el = document.createElement("div");
-  el.innerHTML = popupHtml(u, contacts, winner, goal, pobreza, nominal);
+  el.innerHTML = popupHtml(u, contacts, winner, goal, pobreza, nominal, partido, votos);
 
   if (onAdd && canAdd) {
     const button = document.createElement("button");
@@ -193,6 +204,8 @@ function popupHtml(
   goal?: number,
   pobreza?: PobrezaSeccion,
   nominal?: number,
+  partido?: { nombre: string; color: string } | null,
+  votos?: VotosPartidoSeccion,
 ) {
   const total = u.population ?? 0;
   const cobertura = total > 0 ? ((contacts.total / total) * 100).toFixed(2) : "0.00";
@@ -263,6 +276,73 @@ function popupHtml(
       </div>`
     : "";
 
+  /**
+   * Desglose del partido resaltado en esta sección.
+   *
+   * Es la corrección de un dato equivocado: el popup mostraba el total del
+   * bloque como si fuera del partido, de modo que al resaltar al PVEM aparecían
+   * los votos de Morena. Aquí se separan la columna propia, las boletas que
+   * marcaron a varios aliados y el total de la alianza, cada una con su nombre.
+   */
+  const partidoHtml =
+    partido && votos
+      ? (() => {
+          const fila = (etiqueta: string, valor: number, nota: string, fuerte = false) => `
+            <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:3px">
+              <span style="font-size:11px;${fuerte ? "" : "opacity:.75"}">${etiqueta}</span>
+              <span style="text-align:right">
+                <b style="font-size:12px;font-variant-numeric:tabular-nums">${fmt(valor)}</b>
+                <span style="font-size:10px;opacity:.6"> ${
+                  total > 0 ? `${Math.round((valor / total) * 1000) / 10}%` : "—"
+                }</span>
+                ${nota ? `<div style="font-size:9px;opacity:.6;line-height:1.2">${nota}</div>` : ""}
+              </span>
+            </div>`;
+
+          const enCoalicion = votos.integrantes > 1;
+          const deAliados = Math.max(0, votos.bloqueVotos - votos.propios - votos.coalicion);
+
+          if (!votos.bloque) {
+            return `
+      <div style="margin-top:6px;padding:6px 8px;border-radius:6px;border:1px solid ${partido.color}55">
+        <p style="margin:0;font-size:10px;letter-spacing:.09em;text-transform:uppercase;opacity:.6">
+          <span translate="no">${partido.nombre}</span> en esta sección
+        </p>
+        <p style="margin:3px 0 0;font-size:11px;opacity:.75">
+          No presentó candidatura, propia ni en coalición.
+        </p>
+      </div>`;
+          }
+
+          return `
+      <div style="margin-top:6px;padding:6px 8px;border-radius:6px;border:1px solid ${partido.color}55;background:${partido.color}0D">
+        <p style="margin:0;font-size:10px;letter-spacing:.09em;text-transform:uppercase;opacity:.6">
+          <span translate="no">${partido.nombre}</span> en esta sección
+          ${votos.gano ? '<span style="color:#2F6B4F;font-weight:700"> · ganó</span>' : ""}
+        </p>
+        ${fila("Votos propios", votos.propios, "Su columna en el acta", true)}
+        ${
+          enCoalicion
+            ? fila("Votos en coalición", votos.coalicion, "Boletas con varios aliados · compartido")
+            : ""
+        }
+        ${
+          enCoalicion
+            ? `<div style="margin-top:4px;padding-top:4px;border-top:1px solid #0001">
+                 ${fila(
+                   `Bloque ${votos.bloque}`,
+                   votos.bloqueVotos,
+                   `Incluye ${fmt(deAliados)} de los aliados`,
+                 )}
+               </div>`
+            : `<p style="margin:4px 0 0;font-size:9px;opacity:.6;line-height:1.2">
+                 Compitió solo: el total del bloque es su propia columna.
+               </p>`
+        }
+      </div>`;
+        })()
+      : "";
+
   return `
     <div style="font-family:Manrope,system-ui,sans-serif;min-width:250px;color:#1C1A17">
       <strong style="font-size:14px">Sección ${u.section_code}</strong>
@@ -324,6 +404,7 @@ function popupHtml(
       </div>
       ${metaHtml}
       ${eleccionHtml}
+      ${partidoHtml}
       ${demografia}
       <p style="margin:8px 0 0;font-size:10px;opacity:.55">${CENSUS_DISPLAY_LABEL}</p>
     </div>`;
@@ -339,6 +420,7 @@ export default function TerritoryMap({
   metric,
   poverty = SIN_POBREZA,
   highlight = null,
+  partyVotes = SIN_VOTOS_PARTIDO,
   selectedId,
   focusRequest,
   onSelect,
@@ -384,6 +466,12 @@ export default function TerritoryMap({
   povertyRef.current = poverty;
   const nominalRef = useRef(listaNominal);
   nominalRef.current = listaNominal;
+  // Por referencia, como los demás datos del popup: el desglose llega después
+  // del dibujo y entrar en las dependencias costaría redibujar 1,800 capas.
+  const partyVotesRef = useRef(partyVotes);
+  partyVotesRef.current = partyVotes;
+  const highlightRef = useRef(highlight);
+  highlightRef.current = highlight;
 
   /**
    * Trazo base de cada sección, para que el resaltado de la selección pueda
@@ -426,10 +514,10 @@ export default function TerritoryMap({
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
-    const map = L.map(containerRef.current, { zoomControl: true, attributionControl: true }).setView(
-      [22.77, -102.58],
-      8,
-    );
+    const map = L.map(containerRef.current, {
+      zoomControl: true,
+      attributionControl: true,
+    }).setView([22.77, -102.58], 8);
     // CARTO empezó a exigir clave y sus teselas salían marcadas con "API KEY
     // REQUIRED". Las de OpenStreetMap no piden clave; se atenúan por CSS para
     // que los colores de las capas sigan siendo lo que resalta.
@@ -504,6 +592,8 @@ export default function TerritoryMap({
           goalsRef.current[u.section_code],
           povertyRef.current[u.section_code],
           nominalRef.current[u.section_code],
+          highlightRef.current,
+          partyVotesRef.current[u.section_code],
         );
 
       const track = (l: L.Layer) => {
@@ -594,8 +684,7 @@ export default function TerritoryMap({
     const map = mapRef.current;
     if (!map || !focusRequest) return;
     const shape = shapesRef.current.get(focusRequest.id) as unknown as
-      | (L.Layer & { getBounds?: () => L.LatLngBounds; getLatLng?: () => L.LatLng })
-      | undefined;
+      (L.Layer & { getBounds?: () => L.LatLngBounds; getLatLng?: () => L.LatLng }) | undefined;
     if (!shape) return;
     const esPoligono = typeof shape.getBounds === "function";
     const clave = `${focusRequest.n}|${esPoligono}`;
@@ -628,11 +717,17 @@ export default function TerritoryMap({
                 <span>Ganó la sección</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="h-3 w-5 border border-black/10" style={{ backgroundColor: NO_GANADA }} />
+                <span
+                  className="h-3 w-5 border border-black/10"
+                  style={{ backgroundColor: NO_GANADA }}
+                />
                 <span>Ganó otra fuerza</span>
               </div>
               <div className="flex items-center gap-2 text-muted-foreground">
-                <span className="h-3 w-5 border border-black/10" style={{ backgroundColor: SIN_COMPUTO }} />
+                <span
+                  className="h-3 w-5 border border-black/10"
+                  style={{ backgroundColor: SIN_COMPUTO }}
+                />
                 <span>Sin cómputo</span>
               </div>
             </div>
@@ -644,7 +739,10 @@ export default function TerritoryMap({
             <div className="space-y-1">
               {GRADOS_POBREZA.map((g) => (
                 <div key={g} className="flex items-center gap-2">
-                  <span className="h-3 w-5 border border-black/10" style={{ backgroundColor: GRADO_COLOR[g] }} />
+                  <span
+                    className="h-3 w-5 border border-black/10"
+                    style={{ backgroundColor: GRADO_COLOR[g] }}
+                  />
                   <span>{GRADO_ETIQUETA[g]}</span>
                 </div>
               ))}
