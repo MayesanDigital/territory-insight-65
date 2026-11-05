@@ -75,6 +75,56 @@ export type Database = {
         }
         Relationships: []
       }
+      campaign_agenda: {
+        Row: {
+          created_at: string
+          estado: string
+          fecha_medicion: string
+          fecha_resultados: string
+          fecha_visita: string
+          id: string
+          notas: string | null
+          org_id: string
+          section_code: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          estado?: string
+          fecha_medicion: string
+          fecha_resultados: string
+          fecha_visita: string
+          id?: string
+          notas?: string | null
+          org_id: string
+          section_code: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          estado?: string
+          fecha_medicion?: string
+          fecha_resultados?: string
+          fecha_visita?: string
+          id?: string
+          notas?: string | null
+          org_id?: string
+          section_code?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_agenda_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       candidates: {
         Row: {
           cargo: string | null
@@ -1016,6 +1066,71 @@ export type Database = {
           },
           {
             foreignKeyName: "sentiment_analysis_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      survey_responses: {
+        Row: {
+          conoce_candidato: boolean | null
+          created_at: string
+          created_by: string | null
+          cree_cambio: boolean | null
+          etapa: string
+          id: string
+          necesidad_entidad: string | null
+          necesidad_municipio: string | null
+          nombre: string | null
+          notas: string | null
+          org_id: string
+          promesas_incumplidas: string | null
+          section_code: string
+          votaria_por_el: boolean | null
+          voto_detalle: string | null
+          voto_partido: string | null
+        }
+        Insert: {
+          conoce_candidato?: boolean | null
+          created_at?: string
+          created_by?: string | null
+          cree_cambio?: boolean | null
+          etapa: string
+          id?: string
+          necesidad_entidad?: string | null
+          necesidad_municipio?: string | null
+          nombre?: string | null
+          notas?: string | null
+          org_id: string
+          promesas_incumplidas?: string | null
+          section_code: string
+          votaria_por_el?: boolean | null
+          voto_detalle?: string | null
+          voto_partido?: string | null
+        }
+        Update: {
+          conoce_candidato?: boolean | null
+          created_at?: string
+          created_by?: string | null
+          cree_cambio?: boolean | null
+          etapa?: string
+          id?: string
+          necesidad_entidad?: string | null
+          necesidad_municipio?: string | null
+          nombre?: string | null
+          notas?: string | null
+          org_id?: string
+          promesas_incumplidas?: string | null
+          section_code?: string
+          votaria_por_el?: boolean | null
+          voto_detalle?: string | null
+          voto_partido?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_responses_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"

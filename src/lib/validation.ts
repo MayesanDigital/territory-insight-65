@@ -97,13 +97,9 @@ export const contactSchema = z.object({
 
   category: seleccionObligatoria(CATEGORIAS, "Selecciona la categoría"),
 
-  phone: z
-    .string()
-    .trim()
-    .min(1, "El teléfono es obligatorio")
-    .refine(tieneDigitosValidos, {
-      message: "Debe tener 10 dígitos (la lada +52 es opcional)",
-    }),
+  phone: z.string().trim().min(1, "El teléfono es obligatorio").refine(tieneDigitosValidos, {
+    message: "Debe tener 10 dígitos (la lada +52 es opcional)",
+  }),
 
   address: z
     .string()
@@ -164,3 +160,69 @@ export function normalizePhone(value: string): string | null {
   // Con lada, se conserva tal cual para no perder información del país.
   return d;
 }
+
+// -----------------------------------------------------------------------------
+// Mediciones de campaña
+// -----------------------------------------------------------------------------
+
+/**
+ * El nombre es opcional en las dos mediciones, a propósito.
+ *
+ * Una encuesta de intención de voto se contesta con más franqueza sin dar el
+ * nombre, y el dato no hace falta para el porcentaje. Quien quiera dejarlo
+ * puede, pero exigirlo sesgaría justo lo que se quiere medir.
+ */
+const nombreOpcional = z.string().trim().max(120, "Máximo 120 caracteres");
+
+const respuestaAbierta = (etiqueta: string) =>
+  z
+    .string()
+    .trim()
+    .min(3, `${etiqueta}: escribe la respuesta tal como la dio`)
+    .max(600, "Máximo 600 caracteres");
+
+/** Primera medición: antes de la visita del candidato. */
+export const medicionSchema = z.object({
+  nombre: nombreOpcional,
+  // Obligatorio: es la única pregunta que permite comparar con la segunda
+  // medición, y sin ella la muestra no sirve para medir crecimiento.
+  voto_partido: z.string().min(1, "Elige por quién votaría"),
+  voto_detalle: z.string().trim().max(160, "Máximo 160 caracteres"),
+  promesas_incumplidas: respuestaAbierta("Promesas incumplidas"),
+  necesidad_entidad: respuestaAbierta("Necesidad de la entidad"),
+  necesidad_municipio: respuestaAbierta("Necesidad del municipio"),
+});
+
+export type MedicionFormValues = z.infer<typeof medicionSchema>;
+
+export const emptyMedicion: MedicionFormValues = {
+  nombre: "",
+  voto_partido: "",
+  voto_detalle: "",
+  promesas_incumplidas: "",
+  necesidad_entidad: "",
+  necesidad_municipio: "",
+};
+
+/** Segunda medición: dos días después de la visita. */
+export const resultadosSchema = z.object({
+  nombre: nombreOpcional,
+  // Las tres son sí/no y obligatorias: de ellas salen el conocimiento y la
+  // aceptación, que es lo único que esta medición existe para averiguar.
+  conoce_candidato: z.enum(["si", "no"], { message: "Falta responder" }),
+  cree_cambio: z.enum(["si", "no"], { message: "Falta responder" }),
+  votaria_por_el: z.enum(["si", "no"], { message: "Falta responder" }),
+  voto_partido: z.string().min(1, "Elige por quién votaría"),
+  voto_detalle: z.string().trim().max(160, "Máximo 160 caracteres"),
+});
+
+export type ResultadosFormValues = z.infer<typeof resultadosSchema>;
+
+export const emptyResultados: ResultadosFormValues = {
+  nombre: "",
+  conoce_candidato: "" as unknown as "si",
+  cree_cambio: "" as unknown as "si",
+  votaria_por_el: "" as unknown as "si",
+  voto_partido: "",
+  voto_detalle: "",
+};

@@ -6,6 +6,7 @@ import {
   Users,
   BarChart3,
   Crosshair,
+  ClipboardCheck,
   Radar,
   MessageSquareQuote,
   GitCompare,
@@ -41,6 +42,12 @@ const territorio = [
     icon: Crosshair,
     permiso: "analisis-estrategico",
   },
+  {
+    title: "Avances de campaña",
+    url: "/avances",
+    icon: ClipboardCheck,
+    permiso: "avances",
+  },
 ];
 
 const monitoreo = [
@@ -73,23 +80,23 @@ export function AppSidebar() {
     // parece un error de carga.
     if (lista.length === 0) return null;
     return (
-    <SidebarGroup>
-      {!collapsed && <SidebarGroupLabel>{label}</SidebarGroupLabel>}
-      <SidebarGroupContent>
-        <SidebarMenu>
-          {lista.map((item) => (
-            <SidebarMenuItem key={item.url}>
-              <SidebarMenuButton asChild isActive={pathname === item.url} tooltip={item.title}>
-                <Link to={item.url} className="flex items-center gap-2">
-                  <item.icon className="h-4 w-4" />
-                  {!collapsed && <span>{item.title}</span>}
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
-        </SidebarMenu>
-      </SidebarGroupContent>
-    </SidebarGroup>
+      <SidebarGroup>
+        {!collapsed && <SidebarGroupLabel>{label}</SidebarGroupLabel>}
+        <SidebarGroupContent>
+          <SidebarMenu>
+            {lista.map((item) => (
+              <SidebarMenuItem key={item.url}>
+                <SidebarMenuButton asChild isActive={pathname === item.url} tooltip={item.title}>
+                  <Link to={item.url} className="flex items-center gap-2">
+                    <item.icon className="h-4 w-4" />
+                    {!collapsed && <span>{item.title}</span>}
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
     );
   };
 

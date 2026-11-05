@@ -77,6 +77,7 @@ const PERMISO_DE_RUTA: Record<string, string> = {
   "/contactos": "contactos",
   "/analytics": "analytics",
   "/analisis-estrategico": "analisis-estrategico",
+  "/avances": "avances",
   "/monitor": "monitor",
   "/menciones": "menciones",
   "/comparativo": "comparativo",
